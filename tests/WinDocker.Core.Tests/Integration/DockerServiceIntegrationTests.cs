@@ -35,6 +35,21 @@ public class DockerServiceIntegrationTests(DockerEngineFixture engine) : IClassF
     private static void AssertRecent(DateTimeOffset timestamp) =>
         Assert.InRange(timestamp, DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1));
 
+    /// <summary>Polls <paramref name="condition"/> every 100 ms until it holds; fails the test when it still does not after <paramref name="timeout"/>.</summary>
+    private static async Task WaitUntilAsync(Func<Task<bool>> condition, string description, TimeSpan timeout)
+    {
+        var clock = Stopwatch.StartNew();
+        while (!await condition())
+        {
+            if (clock.Elapsed >= timeout)
+            {
+                Assert.Fail($"Gave up after {timeout.TotalSeconds:0.#} s waiting for {description}.");
+            }
+
+            await Task.Delay(TimeSpan.FromMilliseconds(100), TestToken);
+        }
+    }
+
     private IDockerClient RequireEngine()
     {
         Assert.SkipUnless(engine.Client is not null, engine.UnavailableReason ?? "No Docker engine.");
@@ -223,6 +238,14 @@ public class DockerServiceIntegrationTests(DockerEngineFixture engine) : IClassF
             Assert.Equal(System.Net.HttpStatusCode.Conflict, refusal.StatusCode);
 
             await service.StopContainerAsync(id, TestToken);
+
+            // The engine's container list can trail a stop that has already returned (Docker before 28.3), so wait for it instead of asserting at once.
+            await WaitUntilAsync(
+                async () =>
+                    (await service.ListContainersAsync(all: false, TestToken)).All(container => container.Id != id)
+                    && (await service.ListContainersAsync(all: true, TestToken)).Any(container => container.Id == id && container.State == "exited"),
+                "the stopped container to leave the running list and show as exited in the full list",
+                TimeSpan.FromSeconds(10));
 
             Assert.DoesNotContain(await service.ListContainersAsync(all: false, TestToken), container => container.Id == id);
             var stopped = Assert.Single(await service.ListContainersAsync(all: true, TestToken), container => container.Id == id);
