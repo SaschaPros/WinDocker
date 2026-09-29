@@ -1,6 +1,9 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/WinDocker.Core/WinDocker.Core.csproj" />
+    <Project Path="src/WinDocker/WinDocker.csproj">
+      <Platform Project="x64" />
+    </Project>
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/WinDocker.Core.Tests/WinDocker.Core.Tests.csproj" />

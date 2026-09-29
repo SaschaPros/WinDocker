@@ -1,0 +1,7 @@
+{
+  "profiles": {
+    "WinDocker": {
+      "commandName": "Project"
+    }
+  }
+}

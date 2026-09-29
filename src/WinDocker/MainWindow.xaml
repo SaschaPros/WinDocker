@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window
+    x:Class="WinDocker.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Window.SystemBackdrop>
+        <MicaBackdrop />
+    </Window.SystemBackdrop>
+
+    <NavigationView
+        x:Name="NavView"
+        IsSettingsVisible="False"
+        IsBackButtonVisible="Visible"
+        IsBackEnabled="{x:Bind ContentFrame.CanGoBack, Mode=OneWay}"
+        OpenPaneLength="200"
+        Loaded="NavView_Loaded"
+        ItemInvoked="NavView_ItemInvoked"
+        BackRequested="NavView_BackRequested">
+
+        <NavigationView.MenuItems>
+            <NavigationViewItem x:Uid="Nav_Containers" Tag="Containers" Icon="AllApps" />
+            <NavigationViewItem x:Uid="Nav_Images" Tag="Images" Icon="Library" />
+            <NavigationViewItem x:Uid="Nav_Volumes" Tag="Volumes" Icon="Folder" />
+        </NavigationView.MenuItems>
+
+        <Frame x:Name="ContentFrame" Navigated="ContentFrame_Navigated" />
+    </NavigationView>
+</Window>

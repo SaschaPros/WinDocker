@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="WinDocker.Views.ContainersPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:models="using:WinDocker.Core.Models"
+    NavigationCacheMode="Required">
+
+    <Grid Padding="16,8,16,16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="4" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <CommandBar
+            Grid.Row="0"
+            HorizontalAlignment="Left"
+            Background="Transparent"
+            DefaultLabelPosition="Right"
+            IsOpen="False"
+            OverflowButtonVisibility="Collapsed">
+            <AppBarButton x:Uid="Containers_RefreshButton" Icon="Refresh" Command="{x:Bind ViewModel.RefreshCommand}" />
+            <AppBarSeparator />
+            <AppBarButton x:Uid="Containers_StartButton" Icon="Play" Command="{x:Bind ViewModel.StartCommand}" />
+            <AppBarButton x:Uid="Containers_StopButton" Icon="Stop" Command="{x:Bind ViewModel.StopCommand}" />
+            <AppBarButton x:Uid="Containers_DeleteButton" Icon="Delete" Command="{x:Bind ViewModel.RemoveCommand}" />
+            <AppBarButton
+                x:Uid="Containers_LogsButton"
+                Icon="Document"
+                IsEnabled="{x:Bind ViewModel.HasSelection, Mode=OneWay}"
+                Click="LogsButton_Click" />
+            <AppBarSeparator />
+            <AppBarToggleButton
+                x:Uid="Containers_ShowAllButton"
+                Icon="List"
+                IsChecked="{x:Bind ViewModel.ShowAll, Mode=TwoWay}" />
+        </CommandBar>
+
+        <ProgressBar
+            Grid.Row="1"
+            VerticalAlignment="Center"
+            IsIndeterminate="True"
+            Visibility="{x:Bind ViewModel.IsBusy, Mode=OneWay}" />
+
+        <InfoBar
+            Grid.Row="2"
+            x:Uid="Containers_ErrorInfoBar"
+            Margin="0,8,0,0"
+            Severity="Error"
+            IsOpen="{x:Bind ViewModel.HasError, Mode=TwoWay}"
+            Message="{x:Bind ViewModel.ErrorMessage, Mode=OneWay}" />
+
+        <Grid Grid.Row="3" Padding="12,8,12,8" ColumnSpacing="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="1.2*" />
+                <ColumnDefinition Width="1.4*" />
+                <ColumnDefinition Width="1.3*" />
+                <ColumnDefinition Width="1.6*" />
+                <ColumnDefinition Width="150" />
+                <ColumnDefinition Width="110" />
+                <ColumnDefinition Width="1.4*" />
+            </Grid.ColumnDefinitions>
+            <TextBlock x:Uid="Containers_HeaderName" Grid.Column="0" Style="{StaticResource BodyStrongTextBlockStyle}" />
+            <TextBlock x:Uid="Containers_HeaderImage" Grid.Column="1" Style="{StaticResource BodyStrongTextBlockStyle}" />
+            <TextBlock x:Uid="Containers_HeaderStatus" Grid.Column="2" Style="{StaticResource BodyStrongTextBlockStyle}" />
+            <TextBlock x:Uid="Containers_HeaderPorts" Grid.Column="3" Style="{StaticResource BodyStrongTextBlockStyle}" />
+            <TextBlock x:Uid="Containers_HeaderCreated" Grid.Column="4" Style="{StaticResource BodyStrongTextBlockStyle}" />
+            <TextBlock x:Uid="Containers_HeaderId" Grid.Column="5" Style="{StaticResource BodyStrongTextBlockStyle}" />
+            <TextBlock x:Uid="Containers_HeaderCommand" Grid.Column="6" Style="{StaticResource BodyStrongTextBlockStyle}" />
+        </Grid>
+
+        <ListView
+            Grid.Row="4"
+            ItemsSource="{x:Bind ViewModel.Containers}"
+            SelectedItem="{x:Bind ViewModel.SelectedContainer, Mode=TwoWay}"
+            SelectionMode="Single"
+            ItemContainerStyle="{StaticResource TableRowStyle}">
+            <ListView.ItemTemplate>
+                <DataTemplate x:DataType="models:ContainerInfo">
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="1.2*" />
+                            <ColumnDefinition Width="1.4*" />
+                            <ColumnDefinition Width="1.3*" />
+                            <ColumnDefinition Width="1.6*" />
+                            <ColumnDefinition Width="150" />
+                            <ColumnDefinition Width="110" />
+                            <ColumnDefinition Width="1.4*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="{x:Bind Name}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Name}" />
+                        <TextBlock Grid.Column="1" Text="{x:Bind Image}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Image}" />
+                        <TextBlock Grid.Column="2" Text="{x:Bind Status}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Status}" />
+                        <TextBlock Grid.Column="3" Text="{x:Bind Ports}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Ports}" />
+                        <TextBlock Grid.Column="4" Text="{x:Bind CreatedText}" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Grid.Column="5" Text="{x:Bind ShortId}" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Grid.Column="6" Text="{x:Bind Command}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Command}" />
+                    </Grid>
+                </DataTemplate>
+            </ListView.ItemTemplate>
+        </ListView>
+
+        <TextBlock
+            x:Uid="Containers_EmptyText"
+            Grid.Row="4"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            Visibility="{x:Bind ViewModel.IsEmpty, Mode=OneWay}" />
+    </Grid>
+</Page>

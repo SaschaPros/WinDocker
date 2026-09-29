@@ -1,0 +1,68 @@
+name: Build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  core:
+    name: Core tests (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      # The Docker integration tests use the runner's Docker engine and skip themselves when there is none.
+      - name: Test
+        run: dotnet test --project tests/WinDocker.Core.Tests
+
+  app:
+    name: WinUI app (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Test
+        run: dotnet test --project tests/WinDocker.Core.Tests
+
+      - name: Publish
+        run: dotnet publish src/WinDocker/WinDocker.csproj -c Release -r win-x64 -p:Platform=x64 --self-contained -o artifacts/WinDocker-win-x64
+
+      - name: Check resources
+        shell: pwsh
+        run: |
+          $pri = @(Get-ChildItem -Path artifacts/WinDocker-win-x64 -Filter *.pri -Recurse)
+          if ($pri.Count -eq 0) {
+            throw 'The publish output contains no .pri resource file.'
+          }
+          $pri | ForEach-Object { Write-Host "$($_.Name) ($($_.Length) bytes)" }
+
+          # Best effort: a string from Resources.resw should be readable in the .pri (as ASCII or UTF-16).
+          $latin1 = [System.Text.Encoding]::Latin1
+          $needle = 'Docker error'
+          $ascii = $latin1.GetString([System.Text.Encoding]::ASCII.GetBytes($needle))
+          $wide = $latin1.GetString([System.Text.Encoding]::Unicode.GetBytes($needle))
+          $found = $pri | Where-Object {
+            $content = $latin1.GetString([System.IO.File]::ReadAllBytes($_.FullName))
+            $content.Contains($ascii) -or $content.Contains($wide)
+          }
+          if (-not $found) {
+            Write-Host "::warning::No .pri file contains the string '$needle' from Resources.resw. The app texts may be missing."
+          }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WinDocker-win-x64
+          path: artifacts/WinDocker-win-x64
+          if-no-files-found: error
