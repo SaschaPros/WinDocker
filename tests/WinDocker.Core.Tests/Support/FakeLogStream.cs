@@ -48,20 +48,33 @@ internal sealed class FakeLogStream
 
     public async IAsyncEnumerable<LogLine> ReadAsync([EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        using var registration = cancellationToken.Register(() => cancelled.TrySetResult());
-        await foreach (var line in channel.Reader.ReadAllAsync(cancellationToken))
+        // Cancel() runs its callbacks newest first, so the channel's wait registration fires before this one and the
+        // iterator can end and dispose its own registration before Cancel() gets here. Hence the registration is never
+        // disposed, and the iterator signals on its way out as well.
+        cancellationToken.Register(() => cancelled.TrySetResult());
+        try
         {
-            yield return line;
-
-            // Resumed after the consumer asked for the next line, so it is done with this one.
-            lock (waiters)
+            await foreach (var line in channel.Reader.ReadAllAsync(cancellationToken))
             {
-                consumed++;
-                foreach (var waiter in waiters.Where(waiter => consumed >= waiter.Count).ToList())
+                yield return line;
+
+                // Resumed after the consumer asked for the next line, so it is done with this one.
+                lock (waiters)
                 {
-                    waiters.Remove(waiter);
-                    waiter.Signal.TrySetResult();
+                    consumed++;
+                    foreach (var waiter in waiters.Where(waiter => consumed >= waiter.Count).ToList())
+                    {
+                        waiters.Remove(waiter);
+                        waiter.Signal.TrySetResult();
+                    }
                 }
+            }
+        }
+        finally
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                cancelled.TrySetResult();
             }
         }
     }
