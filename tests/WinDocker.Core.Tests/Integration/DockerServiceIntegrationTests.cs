@@ -367,17 +367,6 @@ public class DockerServiceIntegrationTests(DockerEngineFixture engine) : IClassF
     }
 
     [Fact]
-    public async Task Requests_ThatExceedTheClientTimeout_AreReportedAsUnavailable()
-    {
-        RequireEngine();
-        using var service = new DockerService(() => new DockerClientBuilder().WithTimeout(TimeSpan.Zero).Build());
-
-        var exception = await Assert.ThrowsAsync<DockerUnavailableException>(() => service.ListContainersAsync(all: true, TestToken));
-
-        Assert.IsAssignableFrom<OperationCanceledException>(exception.InnerException);
-    }
-
-    [Fact]
     public async Task Logs_FollowedForLongerThanTheClientTimeout_KeepStreaming()
     {
         var (client, image) = await RequireLinuxEngineAsync();

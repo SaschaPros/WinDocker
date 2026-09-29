@@ -1,10 +1,13 @@
+using System.Net;
+using System.Net.Sockets;
 using Docker.DotNet;
 using Docker.DotNet.NPipe;
 using WinDocker.Core.Services;
+using WinDocker.Core.Tests.Support;
 
 namespace WinDocker.Core.Tests.Services;
 
-/// <summary>Runs the real client against endpoints where nothing listens, to see what the library throws.</summary>
+/// <summary>Runs the real client against endpoints where nothing listens or nothing answers, to see what the library throws.</summary>
 public class DockerServiceUnavailableTests
 {
     private static DockerService ServiceFor(string endpoint) =>
@@ -71,6 +74,27 @@ public class DockerServiceUnavailableTests
             () => service.ListVolumesAsync(TestContext.Current.CancellationToken));
 
         Assert.IsType<SshDockerEndpointNotSupportedException>(exception.InnerException);
+    }
+
+    [Fact]
+    public async Task UnresponsiveTcpEndpoint_IsUnavailableOnceTheClientTimeoutElapses()
+    {
+        // Nothing ever accepts on this listener, but the kernel completes the handshake from the backlog. The client
+        // connects, sends its request and then waits for an answer that never comes, so only its own timeout ends the call.
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        using var service = new DockerService(() => new DockerClientBuilder()
+            .WithEndpoint(new Uri($"tcp://127.0.0.1:{port}"))
+            .WithTimeout(TimeSpan.FromMilliseconds(200))
+            .Build());
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+
+        var exception = await Assert.ThrowsAsync<DockerUnavailableException>(
+            () => service.ListContainersAsync(all: true, TestContext.Current.CancellationToken).Within());
+
+        Assert.IsAssignableFrom<OperationCanceledException>(exception.InnerException);
+        Assert.InRange(clock.Elapsed, TimeSpan.Zero, TimeSpan.FromSeconds(10));
     }
 
     [Fact]
