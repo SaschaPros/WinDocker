@@ -165,13 +165,29 @@ public sealed class JsonSettingsStoreTests : IDisposable
     [Fact]
     public void Save_WorksWithARelativePath()
     {
-        var absolute = Path.Combine(directory, "relative.json");
-        var relative = Path.GetRelativePath(Directory.GetCurrentDirectory(), absolute);
+        // The folder is created below the working directory, not the temp folder: on Windows the two can be on different
+        // drives, and Path.GetRelativePath then has no relative form and returns the absolute path. The working directory
+        // itself stays untouched because the tests run in parallel.
+        var workingDirectory = Directory.GetCurrentDirectory();
+        var folder = "windocker-settings-" + Guid.NewGuid().ToString("N");
+        var relative = Path.Combine(folder, "relative.json");
+        var absolute = Path.Combine(workingDirectory, relative);
         Assert.False(Path.IsPathRooted(relative));
 
-        new JsonSettingsStore(relative).Save(new AppSettings(2));
+        try
+        {
+            new JsonSettingsStore(relative).Save(new AppSettings(2));
 
-        Assert.Equal(2, new JsonSettingsStore(absolute).Load().RefreshIntervalSeconds);
+            Assert.Equal(2, new JsonSettingsStore(absolute).Load().RefreshIntervalSeconds);
+        }
+        finally
+        {
+            var folderPath = Path.Combine(workingDirectory, folder);
+            if (Directory.Exists(folderPath))
+            {
+                Directory.Delete(folderPath, recursive: true);
+            }
+        }
     }
 
     [Fact]
