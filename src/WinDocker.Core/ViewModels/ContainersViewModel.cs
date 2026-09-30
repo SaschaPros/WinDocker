@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using WinDocker.Core.Collections;
+using WinDocker.Core.Columns;
 using WinDocker.Core.Docker;
 using WinDocker.Core.Localization;
 using WinDocker.Core.Models;
@@ -14,8 +15,10 @@ public sealed partial class ContainersViewModel : PageViewModelBase
 {
     private readonly IDockerService docker;
     private readonly IDialogService dialogs;
+    private readonly ListLayout layout;
     private int refreshVersion;
     private bool hasLoaded;
+    private IReadOnlyList<ContainerInfo> latest = [];
     private IReadOnlyList<ContainerItem> selectedContainers = [];
 
     public ContainersViewModel(
@@ -23,14 +26,19 @@ public sealed partial class ContainersViewModel : PageViewModelBase
         IDialogService dialogs,
         ILocalizer localizer,
         SettingsService settings,
+        ListLayouts layouts,
         TimeProvider timeProvider)
         : base(localizer, settings, timeProvider)
     {
         ArgumentNullException.ThrowIfNull(docker);
         ArgumentNullException.ThrowIfNull(dialogs);
+        ArgumentNullException.ThrowIfNull(layouts);
 
         this.docker = docker;
         this.dialogs = dialogs;
+        layout = layouts.Containers;
+        // A plain subscription is fine: the page keeps its view model (NavigationCacheMode=Required), so both live as long as the app.
+        layout.Changed += (_, _) => ApplyLatest();
         Containers.CollectionChanged += (_, _) => OnPropertyChanged(nameof(IsEmpty));
     }
 
@@ -65,15 +73,29 @@ public sealed partial class ContainersViewModel : PageViewModelBase
         }
 
         hasLoaded = true;
+        latest = containers;
+        ApplyLatest();
+    }
+
+    /// <summary>Shows the last loaded list in the order the layout asks for. Also runs when only the layout changed, without asking the engine again.</summary>
+    private void ApplyLatest()
+    {
+        if (!hasLoaded)
+        {
+            return;
+        }
+
+        var selection = selectedContainers;
+        var sorted = ListSorter.Sort(latest, layout, ContainerColumns.All, container => container.Id);
         CollectionSync.Sync(
             Containers,
-            containers,
+            sorted,
             container => container.Id,
             item => item.Id,
             container => new ContainerItem(container),
             (item, container) => item.Update(container));
         OnPropertyChanged(nameof(IsEmpty));
-        DropRemovedFromSelection();
+        RestoreSelection(selection);
     }
 
     partial void OnShowAllChanged(bool value) => _ = RunRefreshAsync(RefreshCoreAsync);
@@ -173,17 +195,25 @@ public sealed partial class ContainersViewModel : PageViewModelBase
         NotifySelectionDependentCommands();
     }
 
-    /// <summary>After a reload: forgets removed rows, and re-evaluates the commands because the state of a selected row may have changed.</summary>
-    private void DropRemovedFromSelection()
+    /// <summary>
+    /// After the list was brought in line: forgets removed rows, puts back rows that a moved row lost from the selection (a list view
+    /// may treat a move as remove and insert and report the row as deselected), and re-evaluates the commands because the state of a
+    /// selected row may have changed. Then tells the view to select the rows again.
+    /// </summary>
+    private void RestoreSelection(IReadOnlyList<ContainerItem> before)
     {
         var present = Containers.ToHashSet();
-        if (selectedContainers.All(present.Contains))
+        var kept = before.Where(present.Contains).ToArray();
+        if (kept.SequenceEqual(selectedContainers))
         {
             NotifySelectionDependentCommands();
-            return;
+        }
+        else
+        {
+            SetSelection(kept);
         }
 
-        SetSelection(selectedContainers.Where(present.Contains).ToArray());
+        RaiseItemsSynced();
     }
 
     private void NotifySelectionDependentCommands()

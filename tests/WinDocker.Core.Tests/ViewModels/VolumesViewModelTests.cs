@@ -2,9 +2,11 @@ using System.Collections.Specialized;
 using System.Net;
 using Docker.DotNet;
 using Microsoft.Extensions.Time.Testing;
+using WinDocker.Core.Columns;
 using WinDocker.Core.Localization;
 using WinDocker.Core.Models;
 using WinDocker.Core.Services;
+using WinDocker.Core.Settings;
 using WinDocker.Core.Tests.Support;
 using WinDocker.Core.ViewModels;
 
@@ -14,16 +16,19 @@ public class VolumesViewModelTests
 {
     private readonly FakeDockerService docker = new();
     private readonly FakeDialogService dialogs = new();
+    private readonly SettingsService settings = FakeSettingsStore.CreateService();
+    private readonly ListLayouts layouts;
 
     public VolumesViewModelTests()
     {
+        layouts = new ListLayouts(settings);
         docker.Volumes.Add(new VolumeInfo("data", "local", "/var/lib/docker/volumes/data/_data", null));
         docker.Volumes.Add(new VolumeInfo("logs", "local", "/var/lib/docker/volumes/logs/_data", null));
         docker.Volumes.Add(new VolumeInfo("cache", "local", "/var/lib/docker/volumes/cache/_data", null));
     }
 
     private VolumesViewModel CreateViewModel() =>
-        new(docker, dialogs, new FakeLocalizer(), FakeSettingsStore.CreateService(), new FakeTimeProvider());
+        new(docker, dialogs, new FakeLocalizer(), settings, layouts, new FakeTimeProvider());
 
     private async Task<VolumesViewModel> LoadedViewModelAsync()
     {
@@ -320,5 +325,133 @@ public class VolumesViewModelTests
         await viewModel.RefreshQuietlyAsync();
 
         Assert.Equal(["ListVolumes"], docker.Calls);
+    }
+
+    [Fact]
+    public async Task Sort_OrdersTheListByTheSortedColumn()
+    {
+        layouts.Volumes.ToggleSort("name");
+        var viewModel = await LoadedViewModelAsync();
+
+        Assert.Equal(["cache", "data", "logs"], Names(viewModel));
+
+        layouts.Volumes.ToggleSort("name");
+
+        Assert.Equal(["logs", "data", "cache"], Names(viewModel));
+    }
+
+    [Fact]
+    public async Task Sort_WithoutASortedColumnKeepsTheOrderOfTheEngine()
+    {
+        var viewModel = await LoadedViewModelAsync();
+
+        Assert.Equal(["data", "logs", "cache"], Names(viewModel));
+    }
+
+    [Fact]
+    public async Task Sort_AppliesToTheDataOfLaterRefreshes()
+    {
+        layouts.Volumes.ToggleSort("name");
+        layouts.Volumes.ToggleSort("name");
+        var viewModel = await LoadedViewModelAsync();
+
+        await viewModel.RefreshCommand.ExecuteAsync(null);
+
+        Assert.Equal(["logs", "data", "cache"], Names(viewModel));
+    }
+
+    [Fact]
+    public async Task Sort_OrdersRowsThatCompareEqualByTheirIdentityNotByTheOrderOfTheEngine()
+    {
+        layouts.Volumes.ToggleSort("driver");
+        var viewModel = await LoadedViewModelAsync();
+
+        Assert.Equal(["cache", "data", "logs"], Names(viewModel));
+    }
+
+    [Fact]
+    public async Task LayoutChange_ResortsTheLoadedListWithoutAskingTheEngineAgain()
+    {
+        var viewModel = await LoadedViewModelAsync();
+        var items = viewModel.Volumes.ToArray();
+        var calls = docker.Calls.Count;
+        var events = new List<NotifyCollectionChangedEventArgs>();
+        viewModel.Volumes.CollectionChanged += (_, e) => events.Add(e);
+
+        layouts.Volumes.ToggleSort("name");
+        var ascending = Names(viewModel);
+        layouts.Volumes.ToggleSort("name");
+
+        Assert.Equal(["cache", "data", "logs"], ascending);
+        Assert.Equal(["logs", "data", "cache"], Names(viewModel));
+        Assert.Equal(calls, docker.Calls.Count);
+        Assert.Equal(items.Length, viewModel.Volumes.Count);
+        Assert.All(viewModel.Volumes, item => Assert.Contains(item, items));
+        Assert.DoesNotContain(events, e => e.Action == NotifyCollectionChangedAction.Reset);
+    }
+
+    [Fact]
+    public async Task LayoutChange_KeepsTheSelectionOfTheMovedRow()
+    {
+        var viewModel = await LoadedViewModelAsync();
+        Select(viewModel, 0);
+        var selected = viewModel.SelectedVolumes[0];
+
+        layouts.Volumes.ToggleSort("name");
+        layouts.Volumes.ToggleSort("name");
+
+        Assert.Same(selected, Assert.Single(viewModel.SelectedVolumes));
+        Assert.Equal(1, viewModel.SelectionCount);
+    }
+
+    [Fact]
+    public async Task LayoutChange_BeforeTheFirstLoadShowsNothingYet()
+    {
+        var viewModel = CreateViewModel();
+
+        layouts.Volumes.ToggleSort("name");
+
+        Assert.Empty(viewModel.Volumes);
+        Assert.False(viewModel.IsEmpty);
+
+        await viewModel.RefreshCommand.ExecuteAsync(null);
+
+        Assert.Equal(["cache", "data", "logs"], Names(viewModel));
+    }
+
+    [Fact]
+    public async Task LayoutChange_PutsBackARowWhoseSelectionTheViewDroppedWhileItMoved()
+    {
+        var viewModel = await LoadedViewModelAsync();
+        Select(viewModel, 0);
+        var selected = viewModel.SelectedVolumes[0];
+        viewModel.Volumes.CollectionChanged += (_, e) =>
+        {
+            if (e.Action == NotifyCollectionChangedAction.Move)
+            {
+                // A list view may handle a move as remove and insert, and report the row as deselected.
+                viewModel.UpdateSelection([]);
+            }
+        };
+
+        layouts.Volumes.ToggleSort("name");
+        layouts.Volumes.ToggleSort("name");
+
+        Assert.Same(selected, Assert.Single(viewModel.SelectedVolumes));
+        Assert.Equal(1, viewModel.SelectionCount);
+    }
+
+    [Fact]
+    public async Task ItemsSynced_IsRaisedAfterALoadAndAfterALayoutChange()
+    {
+        var viewModel = CreateViewModel();
+        var raised = 0;
+        viewModel.ItemsSynced += (_, _) => raised++;
+
+        await viewModel.RefreshCommand.ExecuteAsync(null);
+        Assert.Equal(1, raised);
+
+        layouts.Volumes.ToggleSort("name");
+        Assert.Equal(2, raised);
     }
 }

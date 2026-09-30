@@ -2,9 +2,11 @@ using System.Collections.Specialized;
 using System.Net;
 using Docker.DotNet;
 using Microsoft.Extensions.Time.Testing;
+using WinDocker.Core.Columns;
 using WinDocker.Core.Localization;
 using WinDocker.Core.Models;
 using WinDocker.Core.Services;
+using WinDocker.Core.Settings;
 using WinDocker.Core.Tests.Support;
 using WinDocker.Core.ViewModels;
 
@@ -16,16 +18,19 @@ public class ImagesViewModelTests
 
     private readonly FakeDockerService docker = new();
     private readonly FakeDialogService dialogs = new();
+    private readonly SettingsService settings = FakeSettingsStore.CreateService();
+    private readonly ListLayouts layouts;
 
     public ImagesViewModelTests()
     {
+        layouts = new ListLayouts(settings);
         docker.Images.Add(new ImageInfo("sha256:aaaaaaaaaaaa1111", "nginx", "1.27", Created, 142_000_000));
         docker.Images.Add(new ImageInfo("sha256:aaaaaaaaaaaa1111", "nginx", "latest", Created, 142_000_000));
         docker.Images.Add(new ImageInfo("sha256:bbbbbbbbbbbb2222", "<none>", "<none>", Created, 7_830_000));
     }
 
     private ImagesViewModel CreateViewModel() =>
-        new(docker, dialogs, new FakeLocalizer(), FakeSettingsStore.CreateService(), new FakeTimeProvider());
+        new(docker, dialogs, new FakeLocalizer(), settings, layouts, new FakeTimeProvider());
 
     private async Task<ImagesViewModel> LoadedViewModelAsync()
     {
@@ -364,5 +369,134 @@ public class ImagesViewModelTests
         await viewModel.RefreshQuietlyAsync();
 
         Assert.Equal(["ListImages"], docker.Calls);
+    }
+
+    [Fact]
+    public async Task Sort_OrdersTheListByTheSortedColumn()
+    {
+        layouts.Images.ToggleSort("size");
+        var viewModel = await LoadedViewModelAsync();
+
+        Assert.Equal(["sha256:bbbbbbbbbbbb2222", "nginx:1.27", "nginx:latest"], References(viewModel));
+
+        layouts.Images.ToggleSort("size");
+
+        Assert.Equal(["nginx:1.27", "nginx:latest", "sha256:bbbbbbbbbbbb2222"], References(viewModel));
+    }
+
+    [Fact]
+    public async Task Sort_WithoutASortedColumnKeepsTheOrderOfTheEngine()
+    {
+        var viewModel = await LoadedViewModelAsync();
+
+        Assert.Equal(["nginx:1.27", "nginx:latest", "sha256:bbbbbbbbbbbb2222"], References(viewModel));
+    }
+
+    [Fact]
+    public async Task Sort_AppliesToTheDataOfLaterRefreshes()
+    {
+        layouts.Images.ToggleSort("size");
+        layouts.Images.ToggleSort("size");
+        var viewModel = await LoadedViewModelAsync();
+
+        await viewModel.RefreshCommand.ExecuteAsync(null);
+
+        Assert.Equal(["nginx:1.27", "nginx:latest", "sha256:bbbbbbbbbbbb2222"], References(viewModel));
+    }
+
+    [Fact]
+    public async Task Sort_OrdersRowsThatCompareEqualByTheirIdentityNotByTheOrderOfTheEngine()
+    {
+        docker.Images.Reverse();
+        layouts.Images.ToggleSort("created");
+        var viewModel = await LoadedViewModelAsync();
+
+        Assert.Equal(["nginx:1.27", "nginx:latest", "sha256:bbbbbbbbbbbb2222"], References(viewModel));
+    }
+
+    [Fact]
+    public async Task LayoutChange_ResortsTheLoadedListWithoutAskingTheEngineAgain()
+    {
+        var viewModel = await LoadedViewModelAsync();
+        var items = viewModel.Images.ToArray();
+        var calls = docker.Calls.Count;
+        var events = new List<NotifyCollectionChangedEventArgs>();
+        viewModel.Images.CollectionChanged += (_, e) => events.Add(e);
+
+        layouts.Images.ToggleSort("size");
+        var ascending = References(viewModel);
+        layouts.Images.ToggleSort("size");
+
+        Assert.Equal(["sha256:bbbbbbbbbbbb2222", "nginx:1.27", "nginx:latest"], ascending);
+        Assert.Equal(["nginx:1.27", "nginx:latest", "sha256:bbbbbbbbbbbb2222"], References(viewModel));
+        Assert.Equal(calls, docker.Calls.Count);
+        Assert.Equal(items.Length, viewModel.Images.Count);
+        Assert.All(viewModel.Images, item => Assert.Contains(item, items));
+        Assert.DoesNotContain(events, e => e.Action == NotifyCollectionChangedAction.Reset);
+    }
+
+    [Fact]
+    public async Task LayoutChange_KeepsTheSelectionOfTheMovedRow()
+    {
+        var viewModel = await LoadedViewModelAsync();
+        Select(viewModel, 0);
+        var selected = viewModel.SelectedImages[0];
+
+        layouts.Images.ToggleSort("size");
+        layouts.Images.ToggleSort("size");
+
+        Assert.Same(selected, Assert.Single(viewModel.SelectedImages));
+        Assert.Equal(1, viewModel.SelectionCount);
+    }
+
+    [Fact]
+    public async Task LayoutChange_BeforeTheFirstLoadShowsNothingYet()
+    {
+        var viewModel = CreateViewModel();
+
+        layouts.Images.ToggleSort("size");
+
+        Assert.Empty(viewModel.Images);
+        Assert.False(viewModel.IsEmpty);
+
+        await viewModel.RefreshCommand.ExecuteAsync(null);
+
+        Assert.Equal(["sha256:bbbbbbbbbbbb2222", "nginx:1.27", "nginx:latest"], References(viewModel));
+    }
+
+    [Fact]
+    public async Task LayoutChange_PutsBackARowWhoseSelectionTheViewDroppedWhileItMoved()
+    {
+        var viewModel = await LoadedViewModelAsync();
+        Select(viewModel, 0);
+        var selected = viewModel.SelectedImages[0];
+        viewModel.Images.CollectionChanged += (_, e) =>
+        {
+            if (e.Action == NotifyCollectionChangedAction.Move)
+            {
+                // A list view may handle a move as remove and insert, and report the row as deselected.
+                viewModel.UpdateSelection([]);
+            }
+        };
+
+        layouts.Images.ToggleSort("size");
+        layouts.Images.ToggleSort("size");
+
+        Assert.Same(selected, Assert.Single(viewModel.SelectedImages));
+        Assert.Equal(1, viewModel.SelectionCount);
+    }
+
+    [Fact]
+    public async Task ItemsSynced_IsRaisedAfterALoadAndAfterALayoutChange()
+    {
+        var viewModel = CreateViewModel();
+        var raised = 0;
+        viewModel.ItemsSynced += (_, _) => raised++;
+
+        await viewModel.RefreshCommand.ExecuteAsync(null);
+        Assert.Equal(1, raised);
+
+        layouts.Images.ToggleSort("size");
+        Assert.Equal(2, raised);
     }
 }

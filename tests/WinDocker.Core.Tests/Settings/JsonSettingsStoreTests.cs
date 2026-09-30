@@ -54,6 +54,46 @@ public sealed class JsonSettingsStoreTests : IDisposable
     }
 
     [Fact]
+    public void Load_ReadsAFileWithoutListLayouts()
+    {
+        WriteFile("""{"refreshIntervalSeconds": 10}""");
+
+        var settings = new JsonSettingsStore(FilePath).Load();
+
+        Assert.Equal(10, settings.RefreshIntervalSeconds);
+        Assert.Null(settings.ListLayouts);
+    }
+
+    [Fact]
+    public void SaveAndLoad_RoundTripListLayouts()
+    {
+        var store = new JsonSettingsStore(FilePath);
+        var layouts = new Dictionary<string, ListLayoutSettings>
+        {
+            ["containers"] = new([new ColumnSettings("name"), new ColumnSettings("id", false)], "name", true),
+            ["images"] = new([new ColumnSettings("size")]),
+        };
+
+        store.Save(new AppSettings(2, layouts));
+        var loaded = store.Load();
+
+        Assert.Equal(2, loaded.RefreshIntervalSeconds);
+        Assert.Equal(["containers", "images"], loaded.ListLayouts!.Keys.Order());
+        Assert.Equal([new ColumnSettings("name", true), new ColumnSettings("id", false)], loaded.ListLayouts["containers"].Columns);
+        Assert.Equal("name", loaded.ListLayouts["containers"].SortKey);
+        Assert.True(loaded.ListLayouts["containers"].SortDescending);
+        Assert.Null(loaded.ListLayouts["images"].SortKey);
+    }
+
+    [Fact]
+    public void Load_ReturnsTheDefaultsForMalformedListLayouts()
+    {
+        WriteFile("""{"listLayouts": {"containers": 5}}""");
+
+        Assert.Equal(new AppSettings(), new JsonSettingsStore(FilePath).Load());
+    }
+
+    [Fact]
     public void Load_ReturnsTheDefaultsForBinaryGarbage()
     {
         Directory.CreateDirectory(directory);
