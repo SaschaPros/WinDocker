@@ -7,13 +7,16 @@ public sealed class SettingsService : ObservableObject
 {
     private readonly ISettingsStore store;
     private TimeSpan refreshInterval;
+    private Dictionary<string, ListLayoutSettings> listLayouts;
 
     public SettingsService(ISettingsStore store)
     {
         ArgumentNullException.ThrowIfNull(store);
 
         this.store = store;
-        refreshInterval = TimeSpan.FromSeconds(Math.Max(0, store.Load().RefreshIntervalSeconds));
+        var stored = store.Load();
+        refreshInterval = TimeSpan.FromSeconds(Math.Max(0, stored.RefreshIntervalSeconds));
+        listLayouts = stored.ListLayouts is null ? [] : new Dictionary<string, ListLayoutSettings>(stored.ListLayouts);
     }
 
     /// <summary>The intervals offered in the UI, in seconds; 0 is off. Other stored values still work.</summary>
@@ -32,12 +35,30 @@ public sealed class SettingsService : ObservableObject
         }
     }
 
+    /// <summary>The stored layout of a list, or <see langword="null"/> when the user never changed it.</summary>
+    public ListLayoutSettings? GetListLayout(string listKey)
+    {
+        ArgumentNullException.ThrowIfNull(listKey);
+
+        return listLayouts.GetValueOrDefault(listKey);
+    }
+
+    /// <summary>Remembers the layout of a list and saves all settings.</summary>
+    public void SetListLayout(string listKey, ListLayoutSettings layout)
+    {
+        ArgumentNullException.ThrowIfNull(listKey);
+        ArgumentNullException.ThrowIfNull(layout);
+
+        listLayouts[listKey] = layout;
+        Save();
+    }
+
     private void Save()
     {
         var seconds = (int)Math.Min(int.MaxValue, Math.Round(refreshInterval.TotalSeconds));
         try
         {
-            store.Save(new AppSettings(seconds));
+            store.Save(new AppSettings(seconds, listLayouts.Count == 0 ? null : new Dictionary<string, ListLayoutSettings>(listLayouts)));
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {

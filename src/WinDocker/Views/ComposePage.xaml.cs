@@ -14,6 +14,7 @@ public sealed partial class ComposePage : Page
     {
         ViewModel = App.Services.GetRequiredService<ComposeViewModel>();
         InitializeComponent();
+        ViewModel.ItemsSynced += (_, _) => ListViewSelection.Restore(ItemList, ViewModel.SelectedProjects);
     }
 
     public ComposeViewModel ViewModel { get; }

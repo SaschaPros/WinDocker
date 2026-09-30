@@ -135,4 +135,100 @@ public class SettingsServiceTests
             Directory.Delete(Path.GetDirectoryName(path)!, recursive: true);
         }
     }
+
+    private static ListLayoutSettings Layout(string firstKey = "a") => new([new ColumnSettings(firstKey), new ColumnSettings("b", false)], "b", true);
+
+    [Fact]
+    public void GetListLayout_ReturnsTheStoredLayoutOrNull()
+    {
+        var layout = Layout();
+        var service = new SettingsService(new FakeSettingsStore(new AppSettings(5, new Dictionary<string, ListLayoutSettings> { ["containers"] = layout })));
+
+        Assert.Same(layout, service.GetListLayout("containers"));
+        Assert.Null(service.GetListLayout("images"));
+    }
+
+    [Fact]
+    public void SetListLayout_SavesTheLayoutTogetherWithTheInterval()
+    {
+        var store = new FakeSettingsStore(new AppSettings(30));
+        var service = new SettingsService(store);
+        var layout = Layout();
+
+        service.SetListLayout("images", layout);
+
+        var saved = Assert.Single(store.Saved);
+        Assert.Equal(30, saved.RefreshIntervalSeconds);
+        Assert.Same(layout, Assert.Single(saved.ListLayouts!).Value);
+        Assert.Same(layout, service.GetListLayout("images"));
+    }
+
+    [Fact]
+    public void RefreshInterval_KeepsTheStoredLayouts()
+    {
+        var store = new FakeSettingsStore(new AppSettings(5, new Dictionary<string, ListLayoutSettings> { ["containers"] = Layout() }));
+        var service = new SettingsService(store);
+        service.SetListLayout("volumes", Layout("z"));
+
+        service.RefreshInterval = TimeSpan.FromSeconds(60);
+
+        var saved = store.Saved[^1];
+        Assert.Equal(60, saved.RefreshIntervalSeconds);
+        Assert.Equal(["containers", "volumes"], saved.ListLayouts!.Keys.Order());
+    }
+
+    [Fact]
+    public void SetListLayout_ReplacesTheLayoutOfTheSameList()
+    {
+        var store = new FakeSettingsStore();
+        var service = new SettingsService(store);
+        service.SetListLayout("images", Layout("a"));
+
+        service.SetListLayout("images", Layout("b"));
+
+        Assert.Equal("b", store.Current.ListLayouts!["images"].Columns[0].Key);
+    }
+
+    [Fact]
+    public void SetListLayout_StillAppliesWhenTheSettingsCannotBeSaved()
+    {
+        var store = new FakeSettingsStore { SaveFailure = new IOException() };
+        var service = new SettingsService(store);
+
+        service.SetListLayout("images", Layout());
+
+        Assert.NotNull(service.GetListLayout("images"));
+    }
+
+    [Fact]
+    public void SetListLayout_RejectsMissingArguments()
+    {
+        var service = new SettingsService(new FakeSettingsStore());
+
+        Assert.Throws<ArgumentNullException>(() => service.SetListLayout(null!, Layout()));
+        Assert.Throws<ArgumentNullException>(() => service.SetListLayout("images", null!));
+        Assert.Throws<ArgumentNullException>(() => service.GetListLayout(null!));
+    }
+
+    [Fact]
+    public void Layouts_SurviveARestartWhenBackedByTheJsonFile()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "windocker-tests-" + Guid.NewGuid().ToString("N"), "settings.json");
+        try
+        {
+            new SettingsService(new JsonSettingsStore(path)).SetListLayout("images", Layout());
+
+            var restarted = new SettingsService(new JsonSettingsStore(path));
+
+            var layout = restarted.GetListLayout("images");
+            Assert.NotNull(layout);
+            Assert.Equal([new ColumnSettings("a", true), new ColumnSettings("b", false)], layout.Columns);
+            Assert.Equal("b", layout.SortKey);
+            Assert.True(layout.SortDescending);
+        }
+        finally
+        {
+            Directory.Delete(Path.GetDirectoryName(path)!, recursive: true);
+        }
+    }
 }

@@ -2,6 +2,7 @@ using System.Collections.Specialized;
 using System.Net;
 using Docker.DotNet;
 using Microsoft.Extensions.Time.Testing;
+using WinDocker.Core.Columns;
 using WinDocker.Core.Localization;
 using WinDocker.Core.Models;
 using WinDocker.Core.Services;
@@ -19,15 +20,17 @@ public class ContainersViewModelTests
     private readonly FakeDialogService dialogs = new();
     private readonly FakeTimeProvider time = new();
     private readonly SettingsService settings = FakeSettingsStore.CreateService();
+    private readonly ListLayouts layouts;
 
     public ContainersViewModelTests()
     {
+        layouts = new ListLayouts(settings);
         docker.Containers.Add(Container("c1", "web", "running"));
         docker.Containers.Add(Container("c2", "db", "exited"));
         docker.Containers.Add(Container("c3", "job", "created"));
     }
 
-    private ContainersViewModel CreateViewModel() => new(docker, dialogs, new FakeLocalizer(), settings, time);
+    private ContainersViewModel CreateViewModel() => new(docker, dialogs, new FakeLocalizer(), settings, layouts, time);
 
     private static ContainerInfo Container(string id, string name, string state) =>
         new(id, name, "image", "cmd", Created, state, state, string.Empty);
@@ -950,10 +953,139 @@ public class ContainersViewModelTests
     {
         var localizer = new FakeLocalizer();
 
-        Assert.Throws<ArgumentNullException>(() => new ContainersViewModel(null!, dialogs, localizer, settings, time));
-        Assert.Throws<ArgumentNullException>(() => new ContainersViewModel(docker, null!, localizer, settings, time));
-        Assert.Throws<ArgumentNullException>(() => new ContainersViewModel(docker, dialogs, null!, settings, time));
-        Assert.Throws<ArgumentNullException>(() => new ContainersViewModel(docker, dialogs, localizer, null!, time));
-        Assert.Throws<ArgumentNullException>(() => new ContainersViewModel(docker, dialogs, localizer, settings, null!));
+        Assert.Throws<ArgumentNullException>(() => new ContainersViewModel(null!, dialogs, localizer, settings, layouts, time));
+        Assert.Throws<ArgumentNullException>(() => new ContainersViewModel(docker, null!, localizer, settings, layouts, time));
+        Assert.Throws<ArgumentNullException>(() => new ContainersViewModel(docker, dialogs, null!, settings, layouts, time));
+        Assert.Throws<ArgumentNullException>(() => new ContainersViewModel(docker, dialogs, localizer, null!, layouts, time));
+        Assert.Throws<ArgumentNullException>(() => new ContainersViewModel(docker, dialogs, localizer, settings, null!, time));
+    }
+
+    [Fact]
+    public async Task Sort_OrdersTheListByTheSortedColumn()
+    {
+        layouts.Containers.ToggleSort("name");
+        var viewModel = await LoadedViewModelAsync();
+
+        Assert.Equal(["c2", "c3", "c1"], Ids(viewModel));
+
+        layouts.Containers.ToggleSort("name");
+
+        Assert.Equal(["c1", "c3", "c2"], Ids(viewModel));
+    }
+
+    [Fact]
+    public async Task Sort_WithoutASortedColumnKeepsTheOrderOfTheEngine()
+    {
+        var viewModel = await LoadedViewModelAsync();
+
+        Assert.Equal(["c1", "c2", "c3"], Ids(viewModel));
+    }
+
+    [Fact]
+    public async Task Sort_AppliesToTheDataOfLaterRefreshes()
+    {
+        layouts.Containers.ToggleSort("name");
+        layouts.Containers.ToggleSort("name");
+        var viewModel = await LoadedViewModelAsync();
+
+        await viewModel.RefreshCommand.ExecuteAsync(null);
+
+        Assert.Equal(["c1", "c3", "c2"], Ids(viewModel));
+    }
+
+    [Fact]
+    public async Task Sort_OrdersRowsThatCompareEqualByTheirIdentityNotByTheOrderOfTheEngine()
+    {
+        docker.Containers.Reverse();
+        layouts.Containers.ToggleSort("image");
+        var viewModel = await LoadedViewModelAsync();
+
+        Assert.Equal(["c1", "c2", "c3"], Ids(viewModel));
+    }
+
+    [Fact]
+    public async Task LayoutChange_ResortsTheLoadedListWithoutAskingTheEngineAgain()
+    {
+        var viewModel = await LoadedViewModelAsync();
+        var items = viewModel.Containers.ToArray();
+        var calls = docker.Calls.Count;
+        var events = new List<NotifyCollectionChangedEventArgs>();
+        viewModel.Containers.CollectionChanged += (_, e) => events.Add(e);
+
+        layouts.Containers.ToggleSort("name");
+        var ascending = Ids(viewModel);
+        layouts.Containers.ToggleSort("name");
+
+        Assert.Equal(["c2", "c3", "c1"], ascending);
+        Assert.Equal(["c1", "c3", "c2"], Ids(viewModel));
+        Assert.Equal(calls, docker.Calls.Count);
+        Assert.Equal(items.Length, viewModel.Containers.Count);
+        Assert.All(viewModel.Containers, item => Assert.Contains(item, items));
+        Assert.DoesNotContain(events, e => e.Action == NotifyCollectionChangedAction.Reset);
+    }
+
+    [Fact]
+    public async Task LayoutChange_KeepsTheSelectionOfTheMovedRow()
+    {
+        var viewModel = await LoadedViewModelAsync();
+        Select(viewModel, 0);
+        var selected = viewModel.SelectedContainers[0];
+
+        layouts.Containers.ToggleSort("name");
+        layouts.Containers.ToggleSort("name");
+
+        Assert.Same(selected, Assert.Single(viewModel.SelectedContainers));
+        Assert.Equal(1, viewModel.SelectionCount);
+    }
+
+    [Fact]
+    public async Task LayoutChange_BeforeTheFirstLoadShowsNothingYet()
+    {
+        var viewModel = CreateViewModel();
+
+        layouts.Containers.ToggleSort("name");
+
+        Assert.Empty(viewModel.Containers);
+        Assert.False(viewModel.IsEmpty);
+
+        await viewModel.RefreshCommand.ExecuteAsync(null);
+
+        Assert.Equal(["c2", "c3", "c1"], Ids(viewModel));
+    }
+
+    [Fact]
+    public async Task LayoutChange_PutsBackARowWhoseSelectionTheViewDroppedWhileItMoved()
+    {
+        var viewModel = await LoadedViewModelAsync();
+        Select(viewModel, 0);
+        var selected = viewModel.SelectedContainers[0];
+        viewModel.Containers.CollectionChanged += (_, e) =>
+        {
+            if (e.Action == NotifyCollectionChangedAction.Move)
+            {
+                // A list view may handle a move as remove and insert, and report the row as deselected.
+                viewModel.UpdateSelection([]);
+            }
+        };
+
+        layouts.Containers.ToggleSort("name");
+        layouts.Containers.ToggleSort("name");
+
+        Assert.Same(selected, Assert.Single(viewModel.SelectedContainers));
+        Assert.Equal(1, viewModel.SelectionCount);
+    }
+
+    [Fact]
+    public async Task ItemsSynced_IsRaisedAfterALoadAndAfterALayoutChange()
+    {
+        var viewModel = CreateViewModel();
+        var raised = 0;
+        viewModel.ItemsSynced += (_, _) => raised++;
+
+        await viewModel.RefreshCommand.ExecuteAsync(null);
+        Assert.Equal(1, raised);
+
+        layouts.Containers.ToggleSort("name");
+        Assert.Equal(2, raised);
     }
 }

@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.Input;
 using WinDocker.Core.Collections;
+using WinDocker.Core.Columns;
 using WinDocker.Core.Localization;
 using WinDocker.Core.Models;
 using WinDocker.Core.Services;
@@ -19,8 +20,10 @@ public sealed partial class ComposeViewModel : PageViewModelBase
 {
     private readonly IDockerService docker;
     private readonly IDialogService dialogs;
+    private readonly ListLayout layout;
     private int refreshVersion;
     private bool hasLoaded;
+    private IReadOnlyList<ComposeProjectInfo> latest = [];
     private IReadOnlyList<ComposeProjectItem> selectedProjects = [];
 
     public ComposeViewModel(
@@ -28,14 +31,19 @@ public sealed partial class ComposeViewModel : PageViewModelBase
         IDialogService dialogs,
         ILocalizer localizer,
         SettingsService settings,
+        ListLayouts layouts,
         TimeProvider timeProvider)
         : base(localizer, settings, timeProvider)
     {
         ArgumentNullException.ThrowIfNull(docker);
         ArgumentNullException.ThrowIfNull(dialogs);
+        ArgumentNullException.ThrowIfNull(layouts);
 
         this.docker = docker;
         this.dialogs = dialogs;
+        layout = layouts.Compose;
+        // A plain subscription is fine: the page keeps its view model (NavigationCacheMode=Required), so both live as long as the app.
+        layout.Changed += (_, _) => ApplyLatest();
         Projects.CollectionChanged += (_, _) => OnPropertyChanged(nameof(IsEmpty));
     }
 
@@ -65,9 +73,23 @@ public sealed partial class ComposeViewModel : PageViewModelBase
         }
 
         hasLoaded = true;
+        latest = projects;
+        ApplyLatest();
+    }
+
+    /// <summary>Shows the last loaded list in the order the layout asks for. Also runs when only the layout changed, without asking the engine again.</summary>
+    private void ApplyLatest()
+    {
+        if (!hasLoaded)
+        {
+            return;
+        }
+
+        var selection = selectedProjects;
+        var sorted = ListSorter.Sort(latest, layout, ComposeColumns.All, project => project.Name);
         CollectionSync.Sync(
             Projects,
-            projects,
+            sorted,
             project => project.Name,
             item => item.Name,
             project => new ComposeProjectItem(project) { StatusText = DescribeStatus(project) },
@@ -77,7 +99,7 @@ public sealed partial class ComposeViewModel : PageViewModelBase
                 item.StatusText = DescribeStatus(project);
             });
         OnPropertyChanged(nameof(IsEmpty));
-        DropRemovedFromSelection();
+        RestoreSelection(selection);
     }
 
     [RelayCommand]
@@ -202,17 +224,25 @@ public sealed partial class ComposeViewModel : PageViewModelBase
         NotifySelectionDependentCommands();
     }
 
-    /// <summary>After a reload: forgets removed rows, and re-evaluates the commands because the containers of a selected project may have changed.</summary>
-    private void DropRemovedFromSelection()
+    /// <summary>
+    /// After the list was brought in line: forgets removed rows, puts back rows that a moved row lost from the selection (a list view
+    /// may treat a move as remove and insert and report the row as deselected), and re-evaluates the commands because the state of a
+    /// selected row may have changed. Then tells the view to select the rows again.
+    /// </summary>
+    private void RestoreSelection(IReadOnlyList<ComposeProjectItem> before)
     {
         var present = Projects.ToHashSet();
-        if (selectedProjects.All(present.Contains))
+        var kept = before.Where(present.Contains).ToArray();
+        if (kept.SequenceEqual(selectedProjects))
         {
             NotifySelectionDependentCommands();
-            return;
+        }
+        else
+        {
+            SetSelection(kept);
         }
 
-        SetSelection(selectedProjects.Where(present.Contains).ToArray());
+        RaiseItemsSynced();
     }
 
     private void NotifySelectionDependentCommands()

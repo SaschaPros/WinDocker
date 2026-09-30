@@ -14,6 +14,7 @@ public sealed partial class VolumesPage : Page
     {
         ViewModel = App.Services.GetRequiredService<VolumesViewModel>();
         InitializeComponent();
+        ViewModel.ItemsSynced += (_, _) => ListViewSelection.Restore(ItemList, ViewModel.SelectedVolumes);
     }
 
     public VolumesViewModel ViewModel { get; }

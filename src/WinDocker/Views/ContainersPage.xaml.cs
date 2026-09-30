@@ -14,6 +14,7 @@ public sealed partial class ContainersPage : Page
     {
         ViewModel = App.Services.GetRequiredService<ContainersViewModel>();
         InitializeComponent();
+        ViewModel.ItemsSynced += (_, _) => ListViewSelection.Restore(ItemList, ViewModel.SelectedContainers);
     }
 
     public ContainersViewModel ViewModel { get; }

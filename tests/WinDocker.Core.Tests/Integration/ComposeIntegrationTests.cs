@@ -1,6 +1,7 @@
 using Docker.DotNet;
 using Docker.DotNet.Models;
 using WinDocker.Core.Docker;
+using WinDocker.Core.Columns;
 using WinDocker.Core.Localization;
 using WinDocker.Core.Models;
 using WinDocker.Core.Services;
@@ -105,8 +106,11 @@ public class ComposeIntegrationTests(DockerEngineFixture engine) : DockerIntegra
         }
     }
 
-    private static ComposeViewModel CreateViewModel(DockerService service, FakeDialogService dialogs) =>
-        new(service, dialogs, new FakeLocalizer(), FakeSettingsStore.CreateService(), TimeProvider.System);
+    private static ComposeViewModel CreateViewModel(DockerService service, FakeDialogService dialogs)
+    {
+        var settings = FakeSettingsStore.CreateService();
+        return new(service, dialogs, new FakeLocalizer(), settings, new ListLayouts(settings), TimeProvider.System);
+    }
 
     /// <summary>Reloads the projects until <paramref name="item"/> shows the expected number of running containers; the engine's container list can trail a stop.</summary>
     private static Task WaitForRunningAsync(ComposeViewModel viewModel, ComposeProjectItem item, int running) =>

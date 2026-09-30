@@ -108,6 +108,12 @@ public abstract partial class PageViewModelBase : ObservableObject
 
     public bool HasSingleSelection => SelectionCount == 1;
 
+    /// <summary>
+    /// Raised after a list was brought in line with a fresh load or a new column layout. The selected rows are up to date then,
+    /// so the view can select them again in case its list view dropped a selection while rows moved.
+    /// </summary>
+    public event EventHandler? ItemsSynced;
+
     /// <summary>True while a confirmation dialog opened through <see cref="ConfirmAsync"/> is showing.</summary>
     protected bool IsConfirming => Volatile.Read(ref confirmationCount) > 0;
 
@@ -164,6 +170,8 @@ public abstract partial class PageViewModelBase : ObservableObject
 
     /// <summary>Sets the number of selected items; the derived classes call it when the view pushes a new selection.</summary>
     protected void SetSelectionCount(int count) => SelectionCount = count;
+
+    protected void RaiseItemsSynced() => ItemsSynced?.Invoke(this, EventArgs.Empty);
 
     /// <summary>
     /// Runs <paramref name="action"/> with <see cref="IsBusy"/> set, after clearing the previous error and status message.

@@ -4,6 +4,7 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:models="using:WinDocker.Core.Models"
+    xmlns:table="using:WinDocker.Views.Table"
     NavigationCacheMode="Required">
 
     <Grid Padding="16,8,16,16">
@@ -68,28 +69,10 @@
                 Message="{x:Bind ViewModel.StatusMessage, Mode=OneWay}" />
         </StackPanel>
 
-        <Grid Grid.Row="3" Padding="12,8,12,8" ColumnSpacing="12">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="1.2*" />
-                <ColumnDefinition Width="1.2*" />
-                <ColumnDefinition Width="1.4*" />
-                <ColumnDefinition Width="1.3*" />
-                <ColumnDefinition Width="1.6*" />
-                <ColumnDefinition Width="150" />
-                <ColumnDefinition Width="110" />
-                <ColumnDefinition Width="1.4*" />
-            </Grid.ColumnDefinitions>
-            <TextBlock x:Uid="Containers_HeaderName" Grid.Column="0" Style="{StaticResource BodyStrongTextBlockStyle}" />
-            <TextBlock x:Uid="Containers_HeaderProject" Grid.Column="1" Style="{StaticResource BodyStrongTextBlockStyle}" />
-            <TextBlock x:Uid="Containers_HeaderImage" Grid.Column="2" Style="{StaticResource BodyStrongTextBlockStyle}" />
-            <TextBlock x:Uid="Containers_HeaderStatus" Grid.Column="3" Style="{StaticResource BodyStrongTextBlockStyle}" />
-            <TextBlock x:Uid="Containers_HeaderPorts" Grid.Column="4" Style="{StaticResource BodyStrongTextBlockStyle}" />
-            <TextBlock x:Uid="Containers_HeaderCreated" Grid.Column="5" Style="{StaticResource BodyStrongTextBlockStyle}" />
-            <TextBlock x:Uid="Containers_HeaderId" Grid.Column="6" Style="{StaticResource BodyStrongTextBlockStyle}" />
-            <TextBlock x:Uid="Containers_HeaderCommand" Grid.Column="7" Style="{StaticResource BodyStrongTextBlockStyle}" />
-        </Grid>
+        <table:TableHeader Grid.Row="3" LayoutKey="containers" />
 
         <ListView
+            x:Name="ItemList"
             Grid.Row="4"
             ItemsSource="{x:Bind ViewModel.Containers}"
             SelectionMode="Extended"
@@ -111,26 +94,16 @@
             </ListView.ContextFlyout>
             <ListView.ItemTemplate>
                 <DataTemplate x:DataType="models:ContainerItem">
-                    <Grid ColumnSpacing="12">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="1.2*" />
-                            <ColumnDefinition Width="1.2*" />
-                            <ColumnDefinition Width="1.4*" />
-                            <ColumnDefinition Width="1.3*" />
-                            <ColumnDefinition Width="1.6*" />
-                            <ColumnDefinition Width="150" />
-                            <ColumnDefinition Width="110" />
-                            <ColumnDefinition Width="1.4*" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Text="{x:Bind Info.Name, Mode=OneWay}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Info.Name, Mode=OneWay}" />
-                        <TextBlock Grid.Column="1" Text="{x:Bind Info.ProjectText, Mode=OneWay}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Info.ProjectText, Mode=OneWay}" />
-                        <TextBlock Grid.Column="2" Text="{x:Bind Info.Image, Mode=OneWay}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Info.Image, Mode=OneWay}" />
-                        <TextBlock Grid.Column="3" Text="{x:Bind Info.Status, Mode=OneWay}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Info.Status, Mode=OneWay}" />
-                        <TextBlock Grid.Column="4" Text="{x:Bind Info.Ports, Mode=OneWay}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Info.Ports, Mode=OneWay}" />
-                        <TextBlock Grid.Column="5" Text="{x:Bind Info.CreatedText, Mode=OneWay}" TextTrimming="CharacterEllipsis" />
-                        <TextBlock Grid.Column="6" Text="{x:Bind Info.ShortId, Mode=OneWay}" TextTrimming="CharacterEllipsis" />
-                        <TextBlock Grid.Column="7" Text="{x:Bind Info.Command, Mode=OneWay}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Info.Command, Mode=OneWay}" />
-                    </Grid>
+                    <table:TableRowPanel LayoutKey="containers" ColumnSpacing="12">
+                        <TextBlock table:TableRowPanel.ColumnKey="name" Text="{x:Bind Info.Name, Mode=OneWay}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Info.Name, Mode=OneWay}" />
+                        <TextBlock table:TableRowPanel.ColumnKey="project" Text="{x:Bind Info.ProjectText, Mode=OneWay}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Info.ProjectText, Mode=OneWay}" />
+                        <TextBlock table:TableRowPanel.ColumnKey="image" Text="{x:Bind Info.Image, Mode=OneWay}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Info.Image, Mode=OneWay}" />
+                        <TextBlock table:TableRowPanel.ColumnKey="status" Text="{x:Bind Info.Status, Mode=OneWay}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Info.Status, Mode=OneWay}" />
+                        <TextBlock table:TableRowPanel.ColumnKey="ports" Text="{x:Bind Info.Ports, Mode=OneWay}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Info.Ports, Mode=OneWay}" />
+                        <TextBlock table:TableRowPanel.ColumnKey="created" Text="{x:Bind Info.CreatedText, Mode=OneWay}" TextTrimming="CharacterEllipsis" />
+                        <TextBlock table:TableRowPanel.ColumnKey="id" Text="{x:Bind Info.ShortId, Mode=OneWay}" TextTrimming="CharacterEllipsis" />
+                        <TextBlock table:TableRowPanel.ColumnKey="command" Text="{x:Bind Info.Command, Mode=OneWay}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Info.Command, Mode=OneWay}" />
+                    </table:TableRowPanel>
                 </DataTemplate>
             </ListView.ItemTemplate>
         </ListView>

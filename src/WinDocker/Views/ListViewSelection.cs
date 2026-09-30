@@ -27,6 +27,23 @@ internal static class ListViewSelection
         }
     }
 
+    /// <summary>
+    /// Selects the rows in <paramref name="wanted"/> that the list view does not show as selected. A list view may treat a move
+    /// of an item as remove and insert, which drops the selection of the moved row. Only adds, so it never clears a selection the
+    /// user just made. The selection changes it causes are pushed to the view model like any other, which already knows them.
+    /// </summary>
+    public static void Restore<TItem>(ListView list, IReadOnlyList<TItem> wanted)
+        where TItem : class
+    {
+        foreach (var item in wanted.ToArray())
+        {
+            if (!list.SelectedItems.Contains(item))
+            {
+                list.SelectedItems.Add(item);
+            }
+        }
+    }
+
     /// <summary>The item of the row that contains <paramref name="source"/>: the element that was hit, or the focused row for a keyboard request.</summary>
     private static TItem? ItemUnder<TItem>(ListView list, DependencyObject? source)
         where TItem : class

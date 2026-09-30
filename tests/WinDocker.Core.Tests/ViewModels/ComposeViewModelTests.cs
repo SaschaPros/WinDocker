@@ -2,6 +2,7 @@ using System.Collections.Specialized;
 using System.Net;
 using Docker.DotNet;
 using Microsoft.Extensions.Time.Testing;
+using WinDocker.Core.Columns;
 using WinDocker.Core.Docker;
 using WinDocker.Core.Localization;
 using WinDocker.Core.Models;
@@ -20,10 +21,12 @@ public class ComposeViewModelTests
     private readonly FakeDialogService dialogs = new();
     private readonly FakeTimeProvider time = new();
     private readonly SettingsService settings = FakeSettingsStore.CreateService();
+    private readonly ListLayouts layouts;
 
     /// <summary>The projects are blog (nothing runs), jobs (one of two containers runs) and shop (all three run), in this order.</summary>
     public ComposeViewModelTests()
     {
+        layouts = new ListLayouts(settings);
         docker.Containers.Add(Member("c1", "shop", "db", "running", 0));
         docker.Containers.Add(Member("c2", "shop", "cache", "running", 1));
         docker.Containers.Add(Member("c3", "shop", "web", "running", 2));
@@ -33,7 +36,7 @@ public class ComposeViewModelTests
         docker.Containers.Add(new ContainerInfo("x1", "standalone", "image", "cmd", Created, "running", "Up 1 hour", string.Empty));
     }
 
-    private ComposeViewModel CreateViewModel() => new(docker, dialogs, new FakeLocalizer(), settings, time);
+    private ComposeViewModel CreateViewModel() => new(docker, dialogs, new FakeLocalizer(), settings, layouts, time);
 
     private static ContainerInfo Member(string id, string project, string service, string state, int createdSecond = 0, bool oneOff = false) =>
         new(
@@ -908,10 +911,129 @@ public class ComposeViewModelTests
     {
         var localizer = new FakeLocalizer();
 
-        Assert.Throws<ArgumentNullException>(() => new ComposeViewModel(null!, dialogs, localizer, settings, time));
-        Assert.Throws<ArgumentNullException>(() => new ComposeViewModel(docker, null!, localizer, settings, time));
-        Assert.Throws<ArgumentNullException>(() => new ComposeViewModel(docker, dialogs, null!, settings, time));
-        Assert.Throws<ArgumentNullException>(() => new ComposeViewModel(docker, dialogs, localizer, null!, time));
-        Assert.Throws<ArgumentNullException>(() => new ComposeViewModel(docker, dialogs, localizer, settings, null!));
+        Assert.Throws<ArgumentNullException>(() => new ComposeViewModel(null!, dialogs, localizer, settings, layouts, time));
+        Assert.Throws<ArgumentNullException>(() => new ComposeViewModel(docker, null!, localizer, settings, layouts, time));
+        Assert.Throws<ArgumentNullException>(() => new ComposeViewModel(docker, dialogs, null!, settings, layouts, time));
+        Assert.Throws<ArgumentNullException>(() => new ComposeViewModel(docker, dialogs, localizer, null!, layouts, time));
+        Assert.Throws<ArgumentNullException>(() => new ComposeViewModel(docker, dialogs, localizer, settings, null!, time));
+    }
+
+    [Fact]
+    public async Task Sort_OrdersTheListByTheSortedColumn()
+    {
+        layouts.Compose.ToggleSort("workingDir");
+        var viewModel = await LoadedViewModelAsync();
+
+        Assert.Equal(["blog", "jobs", "shop"], Names(viewModel));
+
+        layouts.Compose.ToggleSort("workingDir");
+
+        Assert.Equal(["shop", "jobs", "blog"], Names(viewModel));
+    }
+
+    [Fact]
+    public async Task Sort_WithoutASortedColumnKeepsTheOrderOfTheEngine()
+    {
+        var viewModel = await LoadedViewModelAsync();
+
+        Assert.Equal(["blog", "jobs", "shop"], Names(viewModel));
+    }
+
+    [Fact]
+    public async Task Sort_AppliesToTheDataOfLaterRefreshes()
+    {
+        layouts.Compose.ToggleSort("workingDir");
+        layouts.Compose.ToggleSort("workingDir");
+        var viewModel = await LoadedViewModelAsync();
+
+        await viewModel.RefreshCommand.ExecuteAsync(null);
+
+        Assert.Equal(["shop", "jobs", "blog"], Names(viewModel));
+    }
+
+    [Fact]
+    public async Task LayoutChange_ResortsTheLoadedListWithoutAskingTheEngineAgain()
+    {
+        var viewModel = await LoadedViewModelAsync();
+        var items = viewModel.Projects.ToArray();
+        var calls = docker.Calls.Count;
+        var events = new List<NotifyCollectionChangedEventArgs>();
+        viewModel.Projects.CollectionChanged += (_, e) => events.Add(e);
+
+        layouts.Compose.ToggleSort("workingDir");
+        var ascending = Names(viewModel);
+        layouts.Compose.ToggleSort("workingDir");
+
+        Assert.Equal(["blog", "jobs", "shop"], ascending);
+        Assert.Equal(["shop", "jobs", "blog"], Names(viewModel));
+        Assert.Equal(calls, docker.Calls.Count);
+        Assert.Equal(items.Length, viewModel.Projects.Count);
+        Assert.All(viewModel.Projects, item => Assert.Contains(item, items));
+        Assert.DoesNotContain(events, e => e.Action == NotifyCollectionChangedAction.Reset);
+    }
+
+    [Fact]
+    public async Task LayoutChange_KeepsTheSelectionOfTheMovedRow()
+    {
+        var viewModel = await LoadedViewModelAsync();
+        Select(viewModel, 0);
+        var selected = viewModel.SelectedProjects[0];
+
+        layouts.Compose.ToggleSort("workingDir");
+        layouts.Compose.ToggleSort("workingDir");
+
+        Assert.Same(selected, Assert.Single(viewModel.SelectedProjects));
+        Assert.Equal(1, viewModel.SelectionCount);
+    }
+
+    [Fact]
+    public async Task LayoutChange_BeforeTheFirstLoadShowsNothingYet()
+    {
+        var viewModel = CreateViewModel();
+
+        layouts.Compose.ToggleSort("workingDir");
+
+        Assert.Empty(viewModel.Projects);
+        Assert.False(viewModel.IsEmpty);
+
+        await viewModel.RefreshCommand.ExecuteAsync(null);
+
+        Assert.Equal(["blog", "jobs", "shop"], Names(viewModel));
+    }
+
+    [Fact]
+    public async Task LayoutChange_PutsBackARowWhoseSelectionTheViewDroppedWhileItMoved()
+    {
+        var viewModel = await LoadedViewModelAsync();
+        Select(viewModel, 0);
+        var selected = viewModel.SelectedProjects[0];
+        viewModel.Projects.CollectionChanged += (_, e) =>
+        {
+            if (e.Action == NotifyCollectionChangedAction.Move)
+            {
+                // A list view may handle a move as remove and insert, and report the row as deselected.
+                viewModel.UpdateSelection([]);
+            }
+        };
+
+        layouts.Compose.ToggleSort("workingDir");
+        layouts.Compose.ToggleSort("workingDir");
+
+        Assert.Same(selected, Assert.Single(viewModel.SelectedProjects));
+        Assert.Equal(1, viewModel.SelectionCount);
+    }
+
+    [Fact]
+    public async Task ItemsSynced_IsRaisedAfterALoadAndAfterALayoutChange()
+    {
+        var viewModel = CreateViewModel();
+        var raised = 0;
+        viewModel.ItemsSynced += (_, _) => raised++;
+
+        await viewModel.RefreshCommand.ExecuteAsync(null);
+        Assert.Equal(1, raised);
+
+        layouts.Compose.ToggleSort("workingDir");
+        Assert.Equal(2, raised);
     }
 }
