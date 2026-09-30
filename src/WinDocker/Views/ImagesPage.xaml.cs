@@ -14,6 +14,7 @@ public sealed partial class ImagesPage : Page
     {
         ViewModel = App.Services.GetRequiredService<ImagesViewModel>();
         InitializeComponent();
+        ViewModel.ItemsSynced += (_, _) => ListViewSelection.Restore(ItemList, ViewModel.SelectedImages);
     }
 
     public ImagesViewModel ViewModel { get; }

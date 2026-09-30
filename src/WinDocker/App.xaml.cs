@@ -1,9 +1,11 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Xaml;
+using WinDocker.Core.Columns;
 using WinDocker.Core.Services;
 using WinDocker.Core.Settings;
 using WinDocker.Core.ViewModels;
 using WinDocker.Services;
+using WinDocker.Views.Table;
 
 namespace WinDocker;
 
@@ -36,6 +38,7 @@ public partial class App : Application
         services.AddSingleton<IDialogService, DialogService>();
         services.AddSingleton<ISettingsStore>(_ => new JsonSettingsStore(JsonSettingsStore.DefaultPath));
         services.AddSingleton<SettingsService>();
+        services.AddSingleton<ListLayouts>();
         services.AddSingleton(TimeProvider.System);
 
         services.AddTransient<ContainersViewModel>();
@@ -45,6 +48,17 @@ public partial class App : Application
         services.AddTransient<LogsViewModel>();
         services.AddTransient<SettingsViewModel>();
 
-        return services.BuildServiceProvider();
+        var provider = services.BuildServiceProvider();
+        RegisterTables(provider.GetRequiredService<ListLayouts>());
+        return provider;
+    }
+
+    /// <summary>Tells the table headers and rows which layout and columns their key stands for.</summary>
+    private static void RegisterTables(ListLayouts layouts)
+    {
+        TableLayouts.Register(ListLayouts.ContainersKey, layouts.Containers, ContainerColumns.All);
+        TableLayouts.Register(ListLayouts.ComposeKey, layouts.Compose, ComposeColumns.All);
+        TableLayouts.Register(ListLayouts.ImagesKey, layouts.Images, ImageColumns.All);
+        TableLayouts.Register(ListLayouts.VolumesKey, layouts.Volumes, VolumeColumns.All);
     }
 }

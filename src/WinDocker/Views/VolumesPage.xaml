@@ -4,6 +4,7 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:models="using:WinDocker.Core.Models"
+    xmlns:table="using:WinDocker.Views.Table"
     NavigationCacheMode="Required">
 
     <Grid Padding="16,8,16,16">
@@ -56,20 +57,10 @@
                 Message="{x:Bind ViewModel.StatusMessage, Mode=OneWay}" />
         </StackPanel>
 
-        <Grid Grid.Row="3" Padding="12,8,12,8" ColumnSpacing="12">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="2*" />
-                <ColumnDefinition Width="90" />
-                <ColumnDefinition Width="3*" />
-                <ColumnDefinition Width="150" />
-            </Grid.ColumnDefinitions>
-            <TextBlock x:Uid="Volumes_HeaderName" Grid.Column="0" Style="{StaticResource BodyStrongTextBlockStyle}" />
-            <TextBlock x:Uid="Volumes_HeaderDriver" Grid.Column="1" Style="{StaticResource BodyStrongTextBlockStyle}" />
-            <TextBlock x:Uid="Volumes_HeaderMountpoint" Grid.Column="2" Style="{StaticResource BodyStrongTextBlockStyle}" />
-            <TextBlock x:Uid="Volumes_HeaderCreated" Grid.Column="3" Style="{StaticResource BodyStrongTextBlockStyle}" />
-        </Grid>
+        <table:TableHeader Grid.Row="3" LayoutKey="volumes" />
 
         <ListView
+            x:Name="ItemList"
             Grid.Row="4"
             ItemsSource="{x:Bind ViewModel.Volumes}"
             SelectionMode="Extended"
@@ -83,18 +74,12 @@
             </ListView.ContextFlyout>
             <ListView.ItemTemplate>
                 <DataTemplate x:DataType="models:VolumeItem">
-                    <Grid ColumnSpacing="12">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="2*" />
-                            <ColumnDefinition Width="90" />
-                            <ColumnDefinition Width="3*" />
-                            <ColumnDefinition Width="150" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Text="{x:Bind Info.Name, Mode=OneWay}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Info.Name, Mode=OneWay}" />
-                        <TextBlock Grid.Column="1" Text="{x:Bind Info.Driver, Mode=OneWay}" TextTrimming="CharacterEllipsis" />
-                        <TextBlock Grid.Column="2" Text="{x:Bind Info.Mountpoint, Mode=OneWay}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Info.Mountpoint, Mode=OneWay}" />
-                        <TextBlock Grid.Column="3" Text="{x:Bind Info.CreatedText, Mode=OneWay}" TextTrimming="CharacterEllipsis" />
-                    </Grid>
+                    <table:TableRowPanel LayoutKey="volumes" ColumnSpacing="12">
+                        <TextBlock table:TableRowPanel.ColumnKey="name" Text="{x:Bind Info.Name, Mode=OneWay}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Info.Name, Mode=OneWay}" />
+                        <TextBlock table:TableRowPanel.ColumnKey="driver" Text="{x:Bind Info.Driver, Mode=OneWay}" TextTrimming="CharacterEllipsis" />
+                        <TextBlock table:TableRowPanel.ColumnKey="mountpoint" Text="{x:Bind Info.Mountpoint, Mode=OneWay}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Info.Mountpoint, Mode=OneWay}" />
+                        <TextBlock table:TableRowPanel.ColumnKey="created" Text="{x:Bind Info.CreatedText, Mode=OneWay}" TextTrimming="CharacterEllipsis" />
+                    </table:TableRowPanel>
                 </DataTemplate>
             </ListView.ItemTemplate>
         </ListView>

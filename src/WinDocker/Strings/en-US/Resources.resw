@@ -256,29 +256,29 @@
   <data name="Containers_StatusInfoBar.Title" xml:space="preserve">
     <value>Done</value>
   </data>
-  <data name="Containers_HeaderName.Text" xml:space="preserve">
+  <data name="Containers_Column_Name" xml:space="preserve">
     <value>Name</value>
   </data>
-  <data name="Containers_HeaderProject.Text" xml:space="preserve">
+  <data name="Containers_Column_Project" xml:space="preserve">
     <value>Project</value>
     <comment>Column: compose project and service of a container.</comment>
   </data>
-  <data name="Containers_HeaderImage.Text" xml:space="preserve">
+  <data name="Containers_Column_Image" xml:space="preserve">
     <value>Image</value>
   </data>
-  <data name="Containers_HeaderStatus.Text" xml:space="preserve">
+  <data name="Containers_Column_Status" xml:space="preserve">
     <value>Status</value>
   </data>
-  <data name="Containers_HeaderPorts.Text" xml:space="preserve">
+  <data name="Containers_Column_Ports" xml:space="preserve">
     <value>Ports</value>
   </data>
-  <data name="Containers_HeaderCreated.Text" xml:space="preserve">
+  <data name="Containers_Column_Created" xml:space="preserve">
     <value>Created</value>
   </data>
-  <data name="Containers_HeaderId.Text" xml:space="preserve">
+  <data name="Containers_Column_Id" xml:space="preserve">
     <value>Container ID</value>
   </data>
-  <data name="Containers_HeaderCommand.Text" xml:space="preserve">
+  <data name="Containers_Column_Command" xml:space="preserve">
     <value>Command</value>
   </data>
   <data name="Containers_EmptyText.Text" xml:space="preserve">
@@ -321,19 +321,19 @@
   <data name="Compose_StatusInfoBar.Title" xml:space="preserve">
     <value>Done</value>
   </data>
-  <data name="Compose_HeaderProject.Text" xml:space="preserve">
+  <data name="Compose_Column_Project" xml:space="preserve">
     <value>Project</value>
   </data>
-  <data name="Compose_HeaderStatus.Text" xml:space="preserve">
+  <data name="Compose_Column_Status" xml:space="preserve">
     <value>Status</value>
   </data>
-  <data name="Compose_HeaderServices.Text" xml:space="preserve">
+  <data name="Compose_Column_Services" xml:space="preserve">
     <value>Services</value>
   </data>
-  <data name="Compose_HeaderWorkingDir.Text" xml:space="preserve">
+  <data name="Compose_Column_WorkingDir" xml:space="preserve">
     <value>Working directory</value>
   </data>
-  <data name="Compose_HeaderConfigFiles.Text" xml:space="preserve">
+  <data name="Compose_Column_ConfigFiles" xml:space="preserve">
     <value>Config files</value>
   </data>
   <data name="Compose_EmptyText.Text" xml:space="preserve">
@@ -366,19 +366,19 @@
   <data name="Images_StatusInfoBar.Title" xml:space="preserve">
     <value>Done</value>
   </data>
-  <data name="Images_HeaderRepository.Text" xml:space="preserve">
+  <data name="Images_Column_Repository" xml:space="preserve">
     <value>Repository</value>
   </data>
-  <data name="Images_HeaderTag.Text" xml:space="preserve">
+  <data name="Images_Column_Tag" xml:space="preserve">
     <value>Tag</value>
   </data>
-  <data name="Images_HeaderId.Text" xml:space="preserve">
+  <data name="Images_Column_Id" xml:space="preserve">
     <value>Image ID</value>
   </data>
-  <data name="Images_HeaderCreated.Text" xml:space="preserve">
+  <data name="Images_Column_Created" xml:space="preserve">
     <value>Created</value>
   </data>
-  <data name="Images_HeaderSize.Text" xml:space="preserve">
+  <data name="Images_Column_Size" xml:space="preserve">
     <value>Size</value>
   </data>
   <data name="Images_EmptyText.Text" xml:space="preserve">
@@ -402,16 +402,16 @@
   <data name="Volumes_StatusInfoBar.Title" xml:space="preserve">
     <value>Done</value>
   </data>
-  <data name="Volumes_HeaderName.Text" xml:space="preserve">
+  <data name="Volumes_Column_Name" xml:space="preserve">
     <value>Name</value>
   </data>
-  <data name="Volumes_HeaderDriver.Text" xml:space="preserve">
+  <data name="Volumes_Column_Driver" xml:space="preserve">
     <value>Driver</value>
   </data>
-  <data name="Volumes_HeaderMountpoint.Text" xml:space="preserve">
+  <data name="Volumes_Column_Mountpoint" xml:space="preserve">
     <value>Mountpoint</value>
   </data>
-  <data name="Volumes_HeaderCreated.Text" xml:space="preserve">
+  <data name="Volumes_Column_Created" xml:space="preserve">
     <value>Created</value>
   </data>
   <data name="Volumes_EmptyText.Text" xml:space="preserve">
@@ -449,5 +449,29 @@
   </data>
   <data name="Settings_RefreshIntervalDescription.Text" xml:space="preserve">
     <value>How often the lists reload themselves. Choose Off to reload only when you press Refresh.</value>
+  </data>
+  <data name="Table_SortedAscending" xml:space="preserve">
+    <value>Sorted ascending. Click to sort descending.</value>
+    <comment>Tooltip and screen reader hint of a column header the list is sorted by, ascending.</comment>
+  </data>
+  <data name="Table_SortedDescending" xml:space="preserve">
+    <value>Sorted descending. Click to remove the sorting.</value>
+    <comment>Tooltip and screen reader hint of a column header the list is sorted by, descending.</comment>
+  </data>
+  <data name="Table_SortByColumn" xml:space="preserve">
+    <value>Click to sort by this column</value>
+    <comment>Tooltip and screen reader hint of a column header the list is not sorted by.</comment>
+  </data>
+  <data name="Table_MoveColumnLeft" xml:space="preserve">
+    <value>Move column left</value>
+    <comment>Column header menu: moves the column under the pointer.</comment>
+  </data>
+  <data name="Table_MoveColumnRight" xml:space="preserve">
+    <value>Move column right</value>
+    <comment>Column header menu: moves the column under the pointer.</comment>
+  </data>
+  <data name="Table_ResetColumns" xml:space="preserve">
+    <value>Reset columns</value>
+    <comment>Column header menu: shows all columns in their default order and removes the sorting.</comment>
   </data>
 </root>

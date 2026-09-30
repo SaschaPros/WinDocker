@@ -17,6 +17,15 @@
                 <Setter Property="Padding" Value="12,0,12,0" />
             </Style>
 
+            <!-- Column headers of the list pages: look like text, react like buttons (sort, drag to reorder). -->
+            <Style x:Key="TableHeaderButtonStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="Padding" Value="0,4,0,4" />
+                <Setter Property="HorizontalAlignment" Value="Stretch" />
+                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            </Style>
+
             <!-- Rows of the log view: as compact as the text allows. -->
             <Style x:Key="LogRowStyle" TargetType="ListViewItem" BasedOn="{StaticResource DefaultListViewItemStyle}">
                 <Setter Property="HorizontalContentAlignment" Value="Stretch" />
