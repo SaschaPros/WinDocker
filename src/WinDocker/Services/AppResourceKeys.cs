@@ -5,7 +5,5 @@ internal static class AppResourceKeys
 {
     public const string AppTitle = "AppTitle";
 
-    public const string DialogDeleteButton = "Dialog_DeleteButton";
-
     public const string DialogCancelButton = "Dialog_CancelButton";
 }

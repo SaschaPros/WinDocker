@@ -10,7 +10,7 @@
 
     <NavigationView
         x:Name="NavView"
-        IsSettingsVisible="False"
+        IsSettingsVisible="True"
         IsBackButtonVisible="Visible"
         IsBackEnabled="{x:Bind ContentFrame.CanGoBack, Mode=OneWay}"
         OpenPaneLength="200"
@@ -20,6 +20,7 @@
 
         <NavigationView.MenuItems>
             <NavigationViewItem x:Uid="Nav_Containers" Tag="Containers" Icon="AllApps" />
+            <NavigationViewItem x:Uid="Nav_Compose" Tag="Compose" Icon="SwitchApps" />
             <NavigationViewItem x:Uid="Nav_Images" Tag="Images" Icon="Library" />
             <NavigationViewItem x:Uid="Nav_Volumes" Tag="Volumes" Icon="Folder" />
         </NavigationView.MenuItems>

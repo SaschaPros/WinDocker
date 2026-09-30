@@ -26,12 +26,18 @@
             <AppBarSeparator />
             <AppBarButton x:Uid="Containers_StartButton" Icon="Play" Command="{x:Bind ViewModel.StartCommand}" />
             <AppBarButton x:Uid="Containers_StopButton" Icon="Stop" Command="{x:Bind ViewModel.StopCommand}" />
-            <AppBarButton x:Uid="Containers_DeleteButton" Icon="Delete" Command="{x:Bind ViewModel.RemoveCommand}" />
+            <AppBarButton x:Uid="Containers_DeleteButton" Icon="Delete" Command="{x:Bind ViewModel.RemoveCommand}">
+                <AppBarButton.KeyboardAccelerators>
+                    <KeyboardAccelerator Key="Delete" />
+                </AppBarButton.KeyboardAccelerators>
+            </AppBarButton>
             <AppBarButton
                 x:Uid="Containers_LogsButton"
                 Icon="Document"
-                IsEnabled="{x:Bind ViewModel.HasSelection, Mode=OneWay}"
-                Click="LogsButton_Click" />
+                IsEnabled="{x:Bind ViewModel.HasSingleSelection, Mode=OneWay}"
+                Click="Logs_Click" />
+            <AppBarSeparator />
+            <AppBarButton x:Uid="Containers_PruneButton" Icon="Trim" Command="{x:Bind ViewModel.PruneCommand}" />
             <AppBarSeparator />
             <AppBarToggleButton
                 x:Uid="Containers_ShowAllButton"
@@ -45,16 +51,26 @@
             IsIndeterminate="True"
             Visibility="{x:Bind ViewModel.IsBusy, Mode=OneWay}" />
 
-        <InfoBar
-            Grid.Row="2"
-            x:Uid="Containers_ErrorInfoBar"
-            Margin="0,8,0,0"
-            Severity="Error"
-            IsOpen="{x:Bind ViewModel.HasError, Mode=TwoWay}"
-            Message="{x:Bind ViewModel.ErrorMessage, Mode=OneWay}" />
+        <StackPanel Grid.Row="2">
+            <InfoBar
+                x:Uid="Containers_ErrorInfoBar"
+                Margin="0,8,0,0"
+                Severity="Error"
+                IsOpen="{x:Bind ViewModel.HasError, Mode=TwoWay}"
+                Visibility="{x:Bind ViewModel.HasError, Mode=OneWay}"
+                Message="{x:Bind ViewModel.ErrorMessage, Mode=OneWay}" />
+            <InfoBar
+                x:Uid="Containers_StatusInfoBar"
+                Margin="0,8,0,0"
+                Severity="Success"
+                IsOpen="{x:Bind ViewModel.HasStatus, Mode=TwoWay}"
+                Visibility="{x:Bind ViewModel.HasStatus, Mode=OneWay}"
+                Message="{x:Bind ViewModel.StatusMessage, Mode=OneWay}" />
+        </StackPanel>
 
         <Grid Grid.Row="3" Padding="12,8,12,8" ColumnSpacing="12">
             <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="1.2*" />
                 <ColumnDefinition Width="1.2*" />
                 <ColumnDefinition Width="1.4*" />
                 <ColumnDefinition Width="1.3*" />
@@ -64,24 +80,40 @@
                 <ColumnDefinition Width="1.4*" />
             </Grid.ColumnDefinitions>
             <TextBlock x:Uid="Containers_HeaderName" Grid.Column="0" Style="{StaticResource BodyStrongTextBlockStyle}" />
-            <TextBlock x:Uid="Containers_HeaderImage" Grid.Column="1" Style="{StaticResource BodyStrongTextBlockStyle}" />
-            <TextBlock x:Uid="Containers_HeaderStatus" Grid.Column="2" Style="{StaticResource BodyStrongTextBlockStyle}" />
-            <TextBlock x:Uid="Containers_HeaderPorts" Grid.Column="3" Style="{StaticResource BodyStrongTextBlockStyle}" />
-            <TextBlock x:Uid="Containers_HeaderCreated" Grid.Column="4" Style="{StaticResource BodyStrongTextBlockStyle}" />
-            <TextBlock x:Uid="Containers_HeaderId" Grid.Column="5" Style="{StaticResource BodyStrongTextBlockStyle}" />
-            <TextBlock x:Uid="Containers_HeaderCommand" Grid.Column="6" Style="{StaticResource BodyStrongTextBlockStyle}" />
+            <TextBlock x:Uid="Containers_HeaderProject" Grid.Column="1" Style="{StaticResource BodyStrongTextBlockStyle}" />
+            <TextBlock x:Uid="Containers_HeaderImage" Grid.Column="2" Style="{StaticResource BodyStrongTextBlockStyle}" />
+            <TextBlock x:Uid="Containers_HeaderStatus" Grid.Column="3" Style="{StaticResource BodyStrongTextBlockStyle}" />
+            <TextBlock x:Uid="Containers_HeaderPorts" Grid.Column="4" Style="{StaticResource BodyStrongTextBlockStyle}" />
+            <TextBlock x:Uid="Containers_HeaderCreated" Grid.Column="5" Style="{StaticResource BodyStrongTextBlockStyle}" />
+            <TextBlock x:Uid="Containers_HeaderId" Grid.Column="6" Style="{StaticResource BodyStrongTextBlockStyle}" />
+            <TextBlock x:Uid="Containers_HeaderCommand" Grid.Column="7" Style="{StaticResource BodyStrongTextBlockStyle}" />
         </Grid>
 
         <ListView
             Grid.Row="4"
             ItemsSource="{x:Bind ViewModel.Containers}"
-            SelectedItem="{x:Bind ViewModel.SelectedContainer, Mode=TwoWay}"
-            SelectionMode="Single"
-            ItemContainerStyle="{StaticResource TableRowStyle}">
+            SelectionMode="Extended"
+            ItemContainerStyle="{StaticResource TableRowStyle}"
+            SelectionChanged="List_SelectionChanged"
+            ContextRequested="List_ContextRequested">
+            <ListView.ContextFlyout>
+                <MenuFlyout>
+                    <MenuFlyoutItem x:Uid="Containers_MenuStart" Icon="Play" Command="{x:Bind ViewModel.StartCommand}" />
+                    <MenuFlyoutItem x:Uid="Containers_MenuStop" Icon="Stop" Command="{x:Bind ViewModel.StopCommand}" />
+                    <MenuFlyoutItem x:Uid="Containers_MenuDelete" Icon="Delete" Command="{x:Bind ViewModel.RemoveCommand}" />
+                    <MenuFlyoutSeparator />
+                    <MenuFlyoutItem
+                        x:Uid="Containers_MenuLogs"
+                        Icon="Document"
+                        IsEnabled="{x:Bind ViewModel.HasSingleSelection, Mode=OneWay}"
+                        Click="Logs_Click" />
+                </MenuFlyout>
+            </ListView.ContextFlyout>
             <ListView.ItemTemplate>
-                <DataTemplate x:DataType="models:ContainerInfo">
+                <DataTemplate x:DataType="models:ContainerItem">
                     <Grid ColumnSpacing="12">
                         <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="1.2*" />
                             <ColumnDefinition Width="1.2*" />
                             <ColumnDefinition Width="1.4*" />
                             <ColumnDefinition Width="1.3*" />
@@ -90,13 +122,14 @@
                             <ColumnDefinition Width="110" />
                             <ColumnDefinition Width="1.4*" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Text="{x:Bind Name}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Name}" />
-                        <TextBlock Grid.Column="1" Text="{x:Bind Image}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Image}" />
-                        <TextBlock Grid.Column="2" Text="{x:Bind Status}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Status}" />
-                        <TextBlock Grid.Column="3" Text="{x:Bind Ports}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Ports}" />
-                        <TextBlock Grid.Column="4" Text="{x:Bind CreatedText}" TextTrimming="CharacterEllipsis" />
-                        <TextBlock Grid.Column="5" Text="{x:Bind ShortId}" TextTrimming="CharacterEllipsis" />
-                        <TextBlock Grid.Column="6" Text="{x:Bind Command}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Command}" />
+                        <TextBlock Grid.Column="0" Text="{x:Bind Info.Name, Mode=OneWay}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Info.Name, Mode=OneWay}" />
+                        <TextBlock Grid.Column="1" Text="{x:Bind Info.ProjectText, Mode=OneWay}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Info.ProjectText, Mode=OneWay}" />
+                        <TextBlock Grid.Column="2" Text="{x:Bind Info.Image, Mode=OneWay}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Info.Image, Mode=OneWay}" />
+                        <TextBlock Grid.Column="3" Text="{x:Bind Info.Status, Mode=OneWay}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Info.Status, Mode=OneWay}" />
+                        <TextBlock Grid.Column="4" Text="{x:Bind Info.Ports, Mode=OneWay}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Info.Ports, Mode=OneWay}" />
+                        <TextBlock Grid.Column="5" Text="{x:Bind Info.CreatedText, Mode=OneWay}" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Grid.Column="6" Text="{x:Bind Info.ShortId, Mode=OneWay}" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Grid.Column="7" Text="{x:Bind Info.Command, Mode=OneWay}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Info.Command, Mode=OneWay}" />
                     </Grid>
                 </DataTemplate>
             </ListView.ItemTemplate>

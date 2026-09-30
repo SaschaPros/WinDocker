@@ -86,6 +86,107 @@ public class DockerMapperTests
         Assert.Equal(new DateTimeOffset(2026, 9, 29, 10, 0, 0, TimeSpan.Zero), info.CreatedAt);
     }
 
+    private static Dictionary<string, string> ComposeContainerLabels() =>
+        new()
+        {
+            ["com.docker.compose.project"] = "shop",
+            ["com.docker.compose.service"] = "web",
+            ["com.docker.compose.project.working_dir"] = "/srv/shop",
+            ["com.docker.compose.project.config_files"] = "/srv/shop/compose.yaml,/srv/shop/compose.override.yaml",
+            ["com.docker.compose.oneoff"] = "False",
+            ["com.docker.compose.version"] = "2.29.0",
+        };
+
+    [Fact]
+    public void ToContainerInfo_ReadsTheComposeLabels()
+    {
+        var info = DockerMapper.ToContainerInfo(Container(container => container.Labels = ComposeContainerLabels()));
+
+        Assert.Equal(
+            new ComposeLabels("shop", "web", "/srv/shop", "/srv/shop/compose.yaml,/srv/shop/compose.override.yaml", IsOneOff: false),
+            info.Compose);
+        Assert.Equal("shop / web", info.ProjectText);
+    }
+
+    [Fact]
+    public void ToContainerInfo_MapsEqualLabelsToEqualInfos()
+    {
+        var first = DockerMapper.ToContainerInfo(Container(container => container.Labels = ComposeContainerLabels()));
+        var second = DockerMapper.ToContainerInfo(Container(container => container.Labels = ComposeContainerLabels()));
+
+        Assert.Equal(first, second);
+        Assert.Equal(first.GetHashCode(), second.GetHashCode());
+    }
+
+    [Theory]
+    [InlineData("True", true)]
+    [InlineData("true", true)]
+    [InlineData("False", false)]
+    [InlineData("", false)]
+    [InlineData("yes", false)]
+    [InlineData(null, false)]
+    public void ToContainerInfo_MarksOneOffContainers(string? label, bool expected)
+    {
+        var labels = ComposeContainerLabels();
+        if (label is null)
+        {
+            labels.Remove("com.docker.compose.oneoff");
+        }
+        else
+        {
+            labels["com.docker.compose.oneoff"] = label;
+        }
+
+        var info = DockerMapper.ToContainerInfo(Container(container => container.Labels = labels));
+
+        Assert.Equal(expected, info.Compose!.IsOneOff);
+    }
+
+    [Fact]
+    public void ToContainerInfo_ToleratesMissingOptionalComposeLabels()
+    {
+        var info = DockerMapper.ToContainerInfo(Container(container =>
+            container.Labels = new Dictionary<string, string> { ["com.docker.compose.project"] = "shop" }));
+
+        Assert.Equal(new ComposeLabels("shop", string.Empty, null, null, IsOneOff: false), info.Compose);
+        Assert.Equal("shop", info.ProjectText);
+    }
+
+    [Fact]
+    public void ToContainerInfo_TreatsEmptyOptionalComposeLabelsAsMissing()
+    {
+        var labels = ComposeContainerLabels();
+        labels["com.docker.compose.project.working_dir"] = string.Empty;
+        labels["com.docker.compose.project.config_files"] = string.Empty;
+
+        var compose = DockerMapper.ToContainerInfo(Container(container => container.Labels = labels)).Compose!;
+
+        Assert.Null(compose.WorkingDir);
+        Assert.Null(compose.ConfigFiles);
+    }
+
+    [Fact]
+    public void ToContainerInfo_HasNoComposeProjectWithoutLabels()
+    {
+        Assert.Null(DockerMapper.ToContainerInfo(Container(container => container.Labels = null!)).Compose);
+
+        var info = DockerMapper.ToContainerInfo(Container(container => container.Labels = new Dictionary<string, string>()));
+
+        Assert.Null(info.Compose);
+        Assert.Equal(string.Empty, info.ProjectText);
+    }
+
+    [Theory]
+    [InlineData("maintainer", "me")]
+    [InlineData("com.docker.compose.service", "web")]
+    [InlineData("com.docker.compose.project", "")]
+    public void ToContainerInfo_HasNoComposeProjectWithoutAProjectLabelValue(string name, string value)
+    {
+        var info = DockerMapper.ToContainerInfo(Container(container => container.Labels = new Dictionary<string, string> { [name] = value }));
+
+        Assert.Null(info.Compose);
+    }
+
     [Fact]
     public void ToImageInfos_ReturnsOneRowPerTag()
     {

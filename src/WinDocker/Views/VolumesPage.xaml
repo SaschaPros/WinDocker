@@ -24,7 +24,13 @@
             OverflowButtonVisibility="Collapsed">
             <AppBarButton x:Uid="Volumes_RefreshButton" Icon="Refresh" Command="{x:Bind ViewModel.RefreshCommand}" />
             <AppBarSeparator />
-            <AppBarButton x:Uid="Volumes_DeleteButton" Icon="Delete" Command="{x:Bind ViewModel.RemoveCommand}" />
+            <AppBarButton x:Uid="Volumes_DeleteButton" Icon="Delete" Command="{x:Bind ViewModel.RemoveCommand}">
+                <AppBarButton.KeyboardAccelerators>
+                    <KeyboardAccelerator Key="Delete" />
+                </AppBarButton.KeyboardAccelerators>
+            </AppBarButton>
+            <AppBarSeparator />
+            <AppBarButton x:Uid="Volumes_PruneButton" Icon="Trim" Command="{x:Bind ViewModel.PruneCommand}" />
         </CommandBar>
 
         <ProgressBar
@@ -33,13 +39,22 @@
             IsIndeterminate="True"
             Visibility="{x:Bind ViewModel.IsBusy, Mode=OneWay}" />
 
-        <InfoBar
-            Grid.Row="2"
-            x:Uid="Volumes_ErrorInfoBar"
-            Margin="0,8,0,0"
-            Severity="Error"
-            IsOpen="{x:Bind ViewModel.HasError, Mode=TwoWay}"
-            Message="{x:Bind ViewModel.ErrorMessage, Mode=OneWay}" />
+        <StackPanel Grid.Row="2">
+            <InfoBar
+                x:Uid="Volumes_ErrorInfoBar"
+                Margin="0,8,0,0"
+                Severity="Error"
+                IsOpen="{x:Bind ViewModel.HasError, Mode=TwoWay}"
+                Visibility="{x:Bind ViewModel.HasError, Mode=OneWay}"
+                Message="{x:Bind ViewModel.ErrorMessage, Mode=OneWay}" />
+            <InfoBar
+                x:Uid="Volumes_StatusInfoBar"
+                Margin="0,8,0,0"
+                Severity="Success"
+                IsOpen="{x:Bind ViewModel.HasStatus, Mode=TwoWay}"
+                Visibility="{x:Bind ViewModel.HasStatus, Mode=OneWay}"
+                Message="{x:Bind ViewModel.StatusMessage, Mode=OneWay}" />
+        </StackPanel>
 
         <Grid Grid.Row="3" Padding="12,8,12,8" ColumnSpacing="12">
             <Grid.ColumnDefinitions>
@@ -57,11 +72,17 @@
         <ListView
             Grid.Row="4"
             ItemsSource="{x:Bind ViewModel.Volumes}"
-            SelectedItem="{x:Bind ViewModel.SelectedVolume, Mode=TwoWay}"
-            SelectionMode="Single"
-            ItemContainerStyle="{StaticResource TableRowStyle}">
+            SelectionMode="Extended"
+            ItemContainerStyle="{StaticResource TableRowStyle}"
+            SelectionChanged="List_SelectionChanged"
+            ContextRequested="List_ContextRequested">
+            <ListView.ContextFlyout>
+                <MenuFlyout>
+                    <MenuFlyoutItem x:Uid="Volumes_MenuDelete" Icon="Delete" Command="{x:Bind ViewModel.RemoveCommand}" />
+                </MenuFlyout>
+            </ListView.ContextFlyout>
             <ListView.ItemTemplate>
-                <DataTemplate x:DataType="models:VolumeInfo">
+                <DataTemplate x:DataType="models:VolumeItem">
                     <Grid ColumnSpacing="12">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="2*" />
@@ -69,10 +90,10 @@
                             <ColumnDefinition Width="3*" />
                             <ColumnDefinition Width="150" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Text="{x:Bind Name}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Name}" />
-                        <TextBlock Grid.Column="1" Text="{x:Bind Driver}" TextTrimming="CharacterEllipsis" />
-                        <TextBlock Grid.Column="2" Text="{x:Bind Mountpoint}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Mountpoint}" />
-                        <TextBlock Grid.Column="3" Text="{x:Bind CreatedText}" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Grid.Column="0" Text="{x:Bind Info.Name, Mode=OneWay}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Info.Name, Mode=OneWay}" />
+                        <TextBlock Grid.Column="1" Text="{x:Bind Info.Driver, Mode=OneWay}" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Grid.Column="2" Text="{x:Bind Info.Mountpoint, Mode=OneWay}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Info.Mountpoint, Mode=OneWay}" />
+                        <TextBlock Grid.Column="3" Text="{x:Bind Info.CreatedText, Mode=OneWay}" TextTrimming="CharacterEllipsis" />
                     </Grid>
                 </DataTemplate>
             </ListView.ItemTemplate>

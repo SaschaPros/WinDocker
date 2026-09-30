@@ -1,0 +1,39 @@
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Navigation;
+using WinDocker.Core.Models;
+using WinDocker.Core.ViewModels;
+
+namespace WinDocker.Views;
+
+public sealed partial class ComposePage : Page
+{
+    public ComposePage()
+    {
+        ViewModel = App.Services.GetRequiredService<ComposeViewModel>();
+        InitializeComponent();
+    }
+
+    public ComposeViewModel ViewModel { get; }
+
+    protected override void OnNavigatedTo(NavigationEventArgs e)
+    {
+        base.OnNavigatedTo(e);
+        ViewModel.RefreshCommand.Execute(null);
+        ViewModel.StartAutoRefresh();
+    }
+
+    protected override void OnNavigatedFrom(NavigationEventArgs e)
+    {
+        base.OnNavigatedFrom(e);
+        ViewModel.StopAutoRefresh();
+    }
+
+    private void List_SelectionChanged(object sender, SelectionChangedEventArgs e) =>
+        ViewModel.UpdateSelection(((ListView)sender).SelectedItems.Cast<ComposeProjectItem>());
+
+    private void List_ContextRequested(UIElement sender, ContextRequestedEventArgs args) =>
+        ListViewSelection.PrepareContextMenu<ComposeProjectItem>((ListView)sender, args);
+}

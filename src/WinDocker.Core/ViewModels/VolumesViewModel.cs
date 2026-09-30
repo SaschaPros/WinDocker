@@ -1,9 +1,11 @@
 using System.Collections.ObjectModel;
-using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using WinDocker.Core.Collections;
+using WinDocker.Core.Docker;
 using WinDocker.Core.Localization;
 using WinDocker.Core.Models;
 using WinDocker.Core.Services;
+using WinDocker.Core.Settings;
 
 namespace WinDocker.Core.ViewModels;
 
@@ -13,9 +15,15 @@ public sealed partial class VolumesViewModel : PageViewModelBase
     private readonly IDialogService dialogs;
     private int refreshVersion;
     private bool hasLoaded;
+    private IReadOnlyList<VolumeItem> selectedVolumes = [];
 
-    public VolumesViewModel(IDockerService docker, IDialogService dialogs, ILocalizer localizer)
-        : base(localizer)
+    public VolumesViewModel(
+        IDockerService docker,
+        IDialogService dialogs,
+        ILocalizer localizer,
+        SettingsService settings,
+        TimeProvider timeProvider)
+        : base(localizer, settings, timeProvider)
     {
         ArgumentNullException.ThrowIfNull(docker);
         ArgumentNullException.ThrowIfNull(dialogs);
@@ -25,40 +33,23 @@ public sealed partial class VolumesViewModel : PageViewModelBase
         Volumes.CollectionChanged += (_, _) => OnPropertyChanged(nameof(IsEmpty));
     }
 
-    public ObservableCollection<VolumeInfo> Volumes { get; } = [];
+    public ObservableCollection<VolumeItem> Volumes { get; } = [];
 
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(RemoveCommand))]
-    public partial VolumeInfo? SelectedVolume { get; set; }
+    /// <summary>The selected rows, as last pushed by <see cref="UpdateSelection"/> and minus the rows a reload removed.</summary>
+    public IReadOnlyList<VolumeItem> SelectedVolumes => selectedVolumes;
 
     /// <summary>True once a load has succeeded and found nothing; false while loading or when the engine could not be read.</summary>
     public bool IsEmpty => hasLoaded && Volumes.Count == 0;
 
-    [RelayCommand]
-    private Task RefreshAsync() => RunSafeAsync(RefreshCoreAsync);
-
-    [RelayCommand(CanExecute = nameof(HasSelection))]
-    private async Task RemoveAsync()
+    /// <summary>Called by the view with the rows it has selected, whenever the selection changes.</summary>
+    public void UpdateSelection(IEnumerable<VolumeItem> items)
     {
-        if (SelectedVolume is not { } volume)
-        {
-            return;
-        }
+        ArgumentNullException.ThrowIfNull(items);
 
-        var confirmed = await dialogs.ConfirmDeleteAsync(
-            Localizer.GetString(ResourceKeys.ConfirmDeleteVolumeTitle),
-            Localizer.Format(ResourceKeys.ConfirmDeleteVolumeMessage, volume.Name));
-        if (!confirmed)
-        {
-            return;
-        }
-
-        await RunMutationAsync(() => docker.RemoveVolumeAsync(volume.Name), RefreshCoreAsync);
+        SetSelection(items.ToArray());
     }
 
-    private bool HasSelection() => SelectedVolume is not null;
-
-    private async Task RefreshCoreAsync()
+    protected override async Task RefreshCoreAsync()
     {
         var version = ++refreshVersion;
         var volumes = await docker.ListVolumesAsync();
@@ -67,10 +58,97 @@ public sealed partial class VolumesViewModel : PageViewModelBase
             return;
         }
 
-        var selectedName = SelectedVolume?.Name;
         hasLoaded = true;
-        ReplaceAll(Volumes, volumes);
+        CollectionSync.Sync(
+            Volumes,
+            volumes,
+            volume => volume.Name,
+            item => item.Name,
+            volume => new VolumeItem(volume),
+            (item, volume) => item.Update(volume));
         OnPropertyChanged(nameof(IsEmpty));
-        SelectedVolume = selectedName is null ? null : Volumes.FirstOrDefault(volume => volume.Name == selectedName);
+        DropRemovedFromSelection();
+    }
+
+    [RelayCommand]
+    private Task RefreshAsync() => RunRefreshAsync(RefreshCoreAsync);
+
+    [RelayCommand(CanExecute = nameof(CanRemoveSelected))]
+    private async Task RemoveAsync()
+    {
+        var targets = SelectedVolumes.Select(item => item.Info).ToList();
+        if (targets.Count == 0)
+        {
+            return;
+        }
+
+        var result = await ConfirmAsync(dialogs, CreateRemoveRequest(targets));
+        if (!result.Confirmed)
+        {
+            return;
+        }
+
+        await RunBulkAsync(targets, volume => docker.RemoveVolumeAsync(volume.Name), volume => volume.Name, RefreshCoreAsync);
+    }
+
+    /// <summary>Removes the anonymous volumes that no container uses after a warning, or with the option checked the named ones as well. Needs no selection.</summary>
+    [RelayCommand]
+    private async Task PruneAsync()
+    {
+        var request = new ConfirmRequest(
+            Localizer.GetString(ResourceKeys.ConfirmPruneVolumesTitle),
+            Localizer.GetString(ResourceKeys.ConfirmPruneVolumesMessage),
+            Localizer.GetString(ResourceKeys.DialogPruneButton),
+            Localizer.GetString(ResourceKeys.ConfirmPruneVolumesNamedOption));
+        var confirmation = await ConfirmAsync(dialogs, request);
+        if (!confirmation.Confirmed)
+        {
+            return;
+        }
+
+        await RunMutationAsync(
+            async () =>
+            {
+                var result = await docker.PruneVolumesAsync(confirmation.OptionChecked);
+                StatusMessage = Localizer.Format(ResourceKeys.PruneVolumesResult, result.DeletedCount, DockerFormat.Size(result.SpaceReclaimed));
+            },
+            RefreshCoreAsync);
+    }
+
+    private bool CanRemoveSelected() => HasSelection;
+
+    private ConfirmRequest CreateRemoveRequest(IReadOnlyList<VolumeInfo> targets)
+    {
+        var deleteText = Localizer.GetString(ResourceKeys.DialogDeleteButton);
+        return targets.Count == 1
+            ? new ConfirmRequest(
+                Localizer.GetString(ResourceKeys.ConfirmDeleteVolumeTitle),
+                Localizer.Format(ResourceKeys.ConfirmDeleteVolumeMessage, targets[0].Name),
+                deleteText)
+            : new ConfirmRequest(
+                Localizer.GetString(ResourceKeys.ConfirmDeleteVolumesTitle),
+                Localizer.Format(ResourceKeys.ConfirmDeleteVolumesMessage, targets.Count),
+                deleteText);
+    }
+
+    private void SetSelection(IReadOnlyList<VolumeItem> items)
+    {
+        selectedVolumes = items;
+        OnPropertyChanged(nameof(SelectedVolumes));
+        SetSelectionCount(items.Count);
+        RemoveCommand.NotifyCanExecuteChanged();
+    }
+
+    /// <summary>After a reload: forgets removed rows, and re-evaluates the commands.</summary>
+    private void DropRemovedFromSelection()
+    {
+        var present = Volumes.ToHashSet();
+        if (selectedVolumes.All(present.Contains))
+        {
+            RemoveCommand.NotifyCanExecuteChanged();
+            return;
+        }
+
+        SetSelection(selectedVolumes.Where(present.Contains).ToArray());
     }
 }
