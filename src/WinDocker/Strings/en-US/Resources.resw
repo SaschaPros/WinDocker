@@ -1,0 +1,236 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="AppTitle" xml:space="preserve">
+    <value>WinDocker</value>
+    <comment>Window title.</comment>
+  </data>
+  <data name="Nav_Containers.Content" xml:space="preserve">
+    <value>Containers</value>
+  </data>
+  <data name="Nav_Images.Content" xml:space="preserve">
+    <value>Images</value>
+  </data>
+  <data name="Nav_Volumes.Content" xml:space="preserve">
+    <value>Volumes</value>
+  </data>
+  <data name="Dialog_DeleteButton" xml:space="preserve">
+    <value>Delete</value>
+    <comment>Confirm button of the delete dialogs.</comment>
+  </data>
+  <data name="Dialog_CancelButton" xml:space="preserve">
+    <value>Cancel</value>
+    <comment>Cancel button of the delete dialogs.</comment>
+  </data>
+  <data name="Error_DockerUnavailable" xml:space="preserve">
+    <value>Cannot connect to the Docker engine. Make sure Docker Desktop is running and that your Windows account is a member of the "docker-users" group.</value>
+  </data>
+  <data name="ConfirmDeleteContainer_Title" xml:space="preserve">
+    <value>Delete container</value>
+  </data>
+  <data name="ConfirmDeleteContainer_Message" xml:space="preserve">
+    <value>Delete the container "{0}"? This cannot be undone.</value>
+    <comment>{0} = container name</comment>
+  </data>
+  <data name="ConfirmDeleteRunningContainer_Message" xml:space="preserve">
+    <value>The container "{0}" is still running. Stop and delete it? This cannot be undone.</value>
+    <comment>{0} = container name</comment>
+  </data>
+  <data name="ConfirmDeleteImage_Title" xml:space="preserve">
+    <value>Delete image</value>
+  </data>
+  <data name="ConfirmDeleteImage_Message" xml:space="preserve">
+    <value>Delete the image "{0}"? This cannot be undone.</value>
+    <comment>{0} = repository:tag, or the short image ID of an untagged image</comment>
+  </data>
+  <data name="ConfirmDeleteVolume_Title" xml:space="preserve">
+    <value>Delete volume</value>
+  </data>
+  <data name="ConfirmDeleteVolume_Message" xml:space="preserve">
+    <value>Delete the volume "{0}" and all data in it? This cannot be undone.</value>
+    <comment>{0} = volume name</comment>
+  </data>
+  <data name="Logs_LineCount" xml:space="preserve">
+    <value>{0:N0} lines</value>
+    <comment>{0} = number of log lines</comment>
+  </data>
+  <data name="Logs_MatchSummary" xml:space="preserve">
+    <value>{0:N0} of {1:N0} lines match</value>
+    <comment>{0} = number of matching lines, {1} = number of log lines</comment>
+  </data>
+  <data name="Containers_RefreshButton.Label" xml:space="preserve">
+    <value>Refresh</value>
+  </data>
+  <data name="Containers_StartButton.Label" xml:space="preserve">
+    <value>Start</value>
+  </data>
+  <data name="Containers_StopButton.Label" xml:space="preserve">
+    <value>Stop</value>
+  </data>
+  <data name="Containers_DeleteButton.Label" xml:space="preserve">
+    <value>Delete</value>
+  </data>
+  <data name="Containers_LogsButton.Label" xml:space="preserve">
+    <value>Logs</value>
+  </data>
+  <data name="Containers_ShowAllButton.Label" xml:space="preserve">
+    <value>Show all</value>
+    <comment>Toggle: include stopped containers, like docker ps -a.</comment>
+  </data>
+  <data name="Containers_ErrorInfoBar.Title" xml:space="preserve">
+    <value>Docker error</value>
+  </data>
+  <data name="Containers_HeaderName.Text" xml:space="preserve">
+    <value>Name</value>
+  </data>
+  <data name="Containers_HeaderImage.Text" xml:space="preserve">
+    <value>Image</value>
+  </data>
+  <data name="Containers_HeaderStatus.Text" xml:space="preserve">
+    <value>Status</value>
+  </data>
+  <data name="Containers_HeaderPorts.Text" xml:space="preserve">
+    <value>Ports</value>
+  </data>
+  <data name="Containers_HeaderCreated.Text" xml:space="preserve">
+    <value>Created</value>
+  </data>
+  <data name="Containers_HeaderId.Text" xml:space="preserve">
+    <value>Container ID</value>
+  </data>
+  <data name="Containers_HeaderCommand.Text" xml:space="preserve">
+    <value>Command</value>
+  </data>
+  <data name="Containers_EmptyText.Text" xml:space="preserve">
+    <value>No containers found.</value>
+  </data>
+  <data name="Images_RefreshButton.Label" xml:space="preserve">
+    <value>Refresh</value>
+  </data>
+  <data name="Images_DeleteButton.Label" xml:space="preserve">
+    <value>Delete</value>
+  </data>
+  <data name="Images_ErrorInfoBar.Title" xml:space="preserve">
+    <value>Docker error</value>
+  </data>
+  <data name="Images_HeaderRepository.Text" xml:space="preserve">
+    <value>Repository</value>
+  </data>
+  <data name="Images_HeaderTag.Text" xml:space="preserve">
+    <value>Tag</value>
+  </data>
+  <data name="Images_HeaderId.Text" xml:space="preserve">
+    <value>Image ID</value>
+  </data>
+  <data name="Images_HeaderCreated.Text" xml:space="preserve">
+    <value>Created</value>
+  </data>
+  <data name="Images_HeaderSize.Text" xml:space="preserve">
+    <value>Size</value>
+  </data>
+  <data name="Images_EmptyText.Text" xml:space="preserve">
+    <value>No images found.</value>
+  </data>
+  <data name="Volumes_RefreshButton.Label" xml:space="preserve">
+    <value>Refresh</value>
+  </data>
+  <data name="Volumes_DeleteButton.Label" xml:space="preserve">
+    <value>Delete</value>
+  </data>
+  <data name="Volumes_ErrorInfoBar.Title" xml:space="preserve">
+    <value>Docker error</value>
+  </data>
+  <data name="Volumes_HeaderName.Text" xml:space="preserve">
+    <value>Name</value>
+  </data>
+  <data name="Volumes_HeaderDriver.Text" xml:space="preserve">
+    <value>Driver</value>
+  </data>
+  <data name="Volumes_HeaderMountpoint.Text" xml:space="preserve">
+    <value>Mountpoint</value>
+  </data>
+  <data name="Volumes_HeaderCreated.Text" xml:space="preserve">
+    <value>Created</value>
+  </data>
+  <data name="Volumes_EmptyText.Text" xml:space="preserve">
+    <value>No volumes found.</value>
+  </data>
+  <data name="Logs_TitleText.Text" xml:space="preserve">
+    <value>Logs</value>
+    <comment>Small caption above the container name.</comment>
+  </data>
+  <data name="Logs_SearchBox.PlaceholderText" xml:space="preserve">
+    <value>Search logs</value>
+  </data>
+  <data name="Logs_TailLabel.Text" xml:space="preserve">
+    <value>Lines to load</value>
+    <comment>Label of the box that picks how many of the most recent lines are loaded.</comment>
+  </data>
+  <data name="Logs_FollowButton.Label" xml:space="preserve">
+    <value>Follow</value>
+    <comment>Toggle: keep streaming new lines.</comment>
+  </data>
+  <data name="Logs_RefreshButton.Label" xml:space="preserve">
+    <value>Refresh</value>
+  </data>
+  <data name="Logs_ErrorInfoBar.Title" xml:space="preserve">
+    <value>Docker error</value>
+  </data>
+</root>
