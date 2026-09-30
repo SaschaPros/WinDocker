@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="WinDocker.Views.SettingsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="using:WinDocker.Core.ViewModels">
+
+    <StackPanel Padding="16,8,16,16" Spacing="16">
+        <TextBlock x:Uid="Settings_TitleText" Style="{StaticResource TitleTextBlockStyle}" />
+
+        <StackPanel Spacing="8">
+            <ComboBox
+                x:Uid="Settings_RefreshIntervalComboBox"
+                MinWidth="200"
+                ItemsSource="{x:Bind ViewModel.IntervalOptions}"
+                SelectedItem="{x:Bind ViewModel.SelectedInterval, Mode=TwoWay}">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:RefreshIntervalOption">
+                        <TextBlock Text="{x:Bind Label}" />
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+            <TextBlock
+                x:Uid="Settings_RefreshIntervalDescription"
+                Style="{StaticResource CaptionTextBlockStyle}"
+                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                TextWrapping="Wrap" />
+        </StackPanel>
+    </StackPanel>
+</Page>

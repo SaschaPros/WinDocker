@@ -15,6 +15,7 @@ public sealed partial class MainWindow : Window
     private static readonly Dictionary<string, Type> Pages = new()
     {
         ["Containers"] = typeof(ContainersPage),
+        ["Compose"] = typeof(ComposePage),
         ["Images"] = typeof(ImagesPage),
         ["Volumes"] = typeof(VolumesPage),
     };
@@ -45,9 +46,13 @@ public sealed partial class MainWindow : Window
 
     private void NavView_ItemInvoked(NavigationView sender, NavigationViewItemInvokedEventArgs args)
     {
-        if (args.InvokedItemContainer?.Tag is string key
-            && Pages.TryGetValue(key, out var pageType)
-            && ContentFrame.CurrentSourcePageType != pageType)
+        var pageType = args switch
+        {
+            { IsSettingsInvoked: true } => typeof(SettingsPage),
+            { InvokedItemContainer.Tag: string key } => Pages.GetValueOrDefault(key),
+            _ => null,
+        };
+        if (pageType is not null && ContentFrame.CurrentSourcePageType != pageType)
         {
             ContentFrame.Navigate(pageType);
         }
@@ -63,6 +68,12 @@ public sealed partial class MainWindow : Window
 
     private void ContentFrame_Navigated(object sender, NavigationEventArgs e)
     {
+        if (e.SourcePageType == typeof(SettingsPage))
+        {
+            NavView.SelectedItem = NavView.SettingsItem;
+            return;
+        }
+
         // The logs page belongs to the containers section.
         var sectionPage = e.SourcePageType == typeof(LogsPage) ? typeof(ContainersPage) : e.SourcePageType;
         NavView.SelectedItem = NavView.MenuItems

@@ -8,15 +8,15 @@ using WinDocker.Core.ViewModels;
 
 namespace WinDocker.Views;
 
-public sealed partial class ContainersPage : Page
+public sealed partial class ComposePage : Page
 {
-    public ContainersPage()
+    public ComposePage()
     {
-        ViewModel = App.Services.GetRequiredService<ContainersViewModel>();
+        ViewModel = App.Services.GetRequiredService<ComposeViewModel>();
         InitializeComponent();
     }
 
-    public ContainersViewModel ViewModel { get; }
+    public ComposeViewModel ViewModel { get; }
 
     protected override void OnNavigatedTo(NavigationEventArgs e)
     {
@@ -32,17 +32,8 @@ public sealed partial class ContainersPage : Page
     }
 
     private void List_SelectionChanged(object sender, SelectionChangedEventArgs e) =>
-        ViewModel.UpdateSelection(((ListView)sender).SelectedItems.Cast<ContainerItem>());
+        ViewModel.UpdateSelection(((ListView)sender).SelectedItems.Cast<ComposeProjectItem>());
 
     private void List_ContextRequested(UIElement sender, ContextRequestedEventArgs args) =>
-        ListViewSelection.PrepareContextMenu<ContainerItem>((ListView)sender, args);
-
-    private void Logs_Click(object sender, RoutedEventArgs e)
-    {
-        if (ViewModel.SelectedContainers.Count == 1)
-        {
-            var container = ViewModel.SelectedContainers[0];
-            Frame.Navigate(typeof(LogsPage), new LogsPageParameter(container.Id, container.Info.Name));
-        }
-    }
+        ListViewSelection.PrepareContextMenu<ComposeProjectItem>((ListView)sender, args);
 }

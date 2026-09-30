@@ -65,6 +65,9 @@
   <data name="Nav_Containers.Content" xml:space="preserve">
     <value>Containers</value>
   </data>
+  <data name="Nav_Compose.Content" xml:space="preserve">
+    <value>Compose</value>
+  </data>
   <data name="Nav_Images.Content" xml:space="preserve">
     <value>Images</value>
   </data>
@@ -75,12 +78,24 @@
     <value>Delete</value>
     <comment>Confirm button of the delete dialogs.</comment>
   </data>
+  <data name="Dialog_PruneButton" xml:space="preserve">
+    <value>Prune</value>
+    <comment>Confirm button of the prune dialogs.</comment>
+  </data>
+  <data name="Dialog_RemoveButton" xml:space="preserve">
+    <value>Remove</value>
+    <comment>Confirm button of the dialog that removes a compose project.</comment>
+  </data>
   <data name="Dialog_CancelButton" xml:space="preserve">
     <value>Cancel</value>
-    <comment>Cancel button of the delete dialogs.</comment>
+    <comment>Cancel button of the confirmation dialogs.</comment>
   </data>
   <data name="Error_DockerUnavailable" xml:space="preserve">
     <value>Cannot connect to the Docker engine. Make sure Docker Desktop is running and that your Windows account is a member of the "docker-users" group.</value>
+  </data>
+  <data name="Bulk_PartialFailure" xml:space="preserve">
+    <value>{0} of {1} operations failed:</value>
+    <comment>First line of the error when several operations of one action fail, followed by the first failures. {0} = number of failed operations, {1} = number of operations</comment>
   </data>
   <data name="ConfirmDeleteContainer_Title" xml:space="preserve">
     <value>Delete container</value>
@@ -93,6 +108,17 @@
     <value>The container "{0}" is still running. Stop and delete it? This cannot be undone.</value>
     <comment>{0} = container name</comment>
   </data>
+  <data name="ConfirmDeleteContainers_Title" xml:space="preserve">
+    <value>Delete containers</value>
+  </data>
+  <data name="ConfirmDeleteContainers_Message" xml:space="preserve">
+    <value>Delete {0} containers? This cannot be undone.</value>
+    <comment>{0} = number of containers (2 or more)</comment>
+  </data>
+  <data name="ConfirmDeleteContainersRunning_Message" xml:space="preserve">
+    <value>Delete {0} containers? Running containers are stopped first (currently running: {1}). This cannot be undone.</value>
+    <comment>{0} = number of containers (2 or more), {1} = how many of them are running</comment>
+  </data>
   <data name="ConfirmDeleteImage_Title" xml:space="preserve">
     <value>Delete image</value>
   </data>
@@ -100,12 +126,99 @@
     <value>Delete the image "{0}"? This cannot be undone.</value>
     <comment>{0} = repository:tag, or the short image ID of an untagged image</comment>
   </data>
+  <data name="ConfirmDeleteImages_Title" xml:space="preserve">
+    <value>Delete images</value>
+  </data>
+  <data name="ConfirmDeleteImages_Message" xml:space="preserve">
+    <value>Delete {0} images? This cannot be undone.</value>
+    <comment>{0} = number of images (2 or more)</comment>
+  </data>
   <data name="ConfirmDeleteVolume_Title" xml:space="preserve">
     <value>Delete volume</value>
   </data>
   <data name="ConfirmDeleteVolume_Message" xml:space="preserve">
     <value>Delete the volume "{0}" and all data in it? This cannot be undone.</value>
     <comment>{0} = volume name</comment>
+  </data>
+  <data name="ConfirmDeleteVolumes_Title" xml:space="preserve">
+    <value>Delete volumes</value>
+  </data>
+  <data name="ConfirmDeleteVolumes_Message" xml:space="preserve">
+    <value>Delete {0} volumes and all data in them? This cannot be undone.</value>
+    <comment>{0} = number of volumes (2 or more)</comment>
+  </data>
+  <data name="ConfirmPruneContainers_Title" xml:space="preserve">
+    <value>Prune containers</value>
+  </data>
+  <data name="ConfirmPruneContainers_Message" xml:space="preserve">
+    <value>This deletes all stopped containers and the data that is stored only inside them. This cannot be undone.</value>
+  </data>
+  <data name="ConfirmPruneImages_Title" xml:space="preserve">
+    <value>Prune images</value>
+  </data>
+  <data name="ConfirmPruneImages_Message" xml:space="preserve">
+    <value>This deletes all dangling images: untagged images that no container uses. This cannot be undone.</value>
+  </data>
+  <data name="ConfirmPruneImages_AllOption" xml:space="preserve">
+    <value>Also remove unused images, not only dangling ones</value>
+    <comment>Check box of the image prune dialog (like docker image prune -a).</comment>
+  </data>
+  <data name="ConfirmPruneVolumes_Title" xml:space="preserve">
+    <value>Prune volumes</value>
+  </data>
+  <data name="ConfirmPruneVolumes_Message" xml:space="preserve">
+    <value>This deletes all anonymous volumes that no container uses, together with the data in them. This cannot be undone.</value>
+  </data>
+  <data name="ConfirmPruneVolumes_NamedOption" xml:space="preserve">
+    <value>Also remove unused named volumes</value>
+    <comment>Check box of the volume prune dialog.</comment>
+  </data>
+  <data name="Prune_ContainersResult" xml:space="preserve">
+    <value>Containers removed: {0}. Space reclaimed: {1}.</value>
+    <comment>{0} = number of containers, {1} = reclaimed space, for example 12.3MB</comment>
+  </data>
+  <data name="Prune_ImagesResult" xml:space="preserve">
+    <value>Images removed: {0}. Space reclaimed: {1}.</value>
+    <comment>{0} = number of images, {1} = reclaimed space, for example 12.3MB</comment>
+  </data>
+  <data name="Prune_VolumesResult" xml:space="preserve">
+    <value>Volumes removed: {0}. Space reclaimed: {1}.</value>
+    <comment>{0} = number of volumes, {1} = reclaimed space, for example 12.3MB</comment>
+  </data>
+  <data name="Compose_StatusRunning" xml:space="preserve">
+    <value>Running ({0}/{1})</value>
+    <comment>All containers of a compose project run. {0} = running containers, {1} = containers</comment>
+  </data>
+  <data name="Compose_StatusPartial" xml:space="preserve">
+    <value>Partially running ({0}/{1})</value>
+    <comment>Some containers of a compose project run. {0} = running containers, {1} = containers</comment>
+  </data>
+  <data name="Compose_StatusExited" xml:space="preserve">
+    <value>Exited</value>
+    <comment>No container of a compose project runs.</comment>
+  </data>
+  <data name="ConfirmComposeDown_Title" xml:space="preserve">
+    <value>Remove project</value>
+  </data>
+  <data name="ConfirmComposeDown_Message" xml:space="preserve">
+    <value>Stop and remove the compose project "{0}"? Its containers and networks are deleted; the compose files are not touched. This cannot be undone.</value>
+    <comment>{0} = project name</comment>
+  </data>
+  <data name="ConfirmComposeDownMultiple_Message" xml:space="preserve">
+    <value>Stop and remove {0} compose projects? Their containers and networks are deleted; the compose files are not touched. This cannot be undone.</value>
+    <comment>{0} = number of projects (2 or more)</comment>
+  </data>
+  <data name="ConfirmComposeDown_VolumesOption" xml:space="preserve">
+    <value>Also remove the project volumes and all data in them</value>
+    <comment>Check box of the compose remove dialog (like docker compose down -v).</comment>
+  </data>
+  <data name="Settings_IntervalOff" xml:space="preserve">
+    <value>Off</value>
+    <comment>Auto-refresh choice that turns refreshing off.</comment>
+  </data>
+  <data name="Settings_IntervalSeconds" xml:space="preserve">
+    <value>{0} seconds</value>
+    <comment>Auto-refresh choice. {0} = seconds</comment>
   </data>
   <data name="Logs_LineCount" xml:space="preserve">
     <value>{0:N0} lines</value>
@@ -130,6 +243,9 @@
   <data name="Containers_LogsButton.Label" xml:space="preserve">
     <value>Logs</value>
   </data>
+  <data name="Containers_PruneButton.Label" xml:space="preserve">
+    <value>Prune</value>
+  </data>
   <data name="Containers_ShowAllButton.Label" xml:space="preserve">
     <value>Show all</value>
     <comment>Toggle: include stopped containers, like docker ps -a.</comment>
@@ -137,8 +253,15 @@
   <data name="Containers_ErrorInfoBar.Title" xml:space="preserve">
     <value>Docker error</value>
   </data>
+  <data name="Containers_StatusInfoBar.Title" xml:space="preserve">
+    <value>Done</value>
+  </data>
   <data name="Containers_HeaderName.Text" xml:space="preserve">
     <value>Name</value>
+  </data>
+  <data name="Containers_HeaderProject.Text" xml:space="preserve">
+    <value>Project</value>
+    <comment>Column: compose project and service of a container.</comment>
   </data>
   <data name="Containers_HeaderImage.Text" xml:space="preserve">
     <value>Image</value>
@@ -161,14 +284,87 @@
   <data name="Containers_EmptyText.Text" xml:space="preserve">
     <value>No containers found.</value>
   </data>
+  <data name="Containers_MenuStart.Text" xml:space="preserve">
+    <value>Start</value>
+  </data>
+  <data name="Containers_MenuStop.Text" xml:space="preserve">
+    <value>Stop</value>
+  </data>
+  <data name="Containers_MenuDelete.Text" xml:space="preserve">
+    <value>Delete</value>
+  </data>
+  <data name="Containers_MenuLogs.Text" xml:space="preserve">
+    <value>Logs</value>
+  </data>
+  <data name="Compose_RefreshButton.Label" xml:space="preserve">
+    <value>Refresh</value>
+  </data>
+  <data name="Compose_StartButton.Label" xml:space="preserve">
+    <value>Start</value>
+  </data>
+  <data name="Compose_StopButton.Label" xml:space="preserve">
+    <value>Stop</value>
+  </data>
+  <data name="Compose_RestartButton.Label" xml:space="preserve">
+    <value>Restart</value>
+  </data>
+  <data name="Compose_DownButton.Label" xml:space="preserve">
+    <value>Down</value>
+    <comment>Like docker compose down: removes the containers and networks of the project.</comment>
+  </data>
+  <data name="Compose_DownToolTip.Content" xml:space="preserve">
+    <value>Stop and remove the containers and networks of the project (docker compose down)</value>
+  </data>
+  <data name="Compose_ErrorInfoBar.Title" xml:space="preserve">
+    <value>Docker error</value>
+  </data>
+  <data name="Compose_StatusInfoBar.Title" xml:space="preserve">
+    <value>Done</value>
+  </data>
+  <data name="Compose_HeaderProject.Text" xml:space="preserve">
+    <value>Project</value>
+  </data>
+  <data name="Compose_HeaderStatus.Text" xml:space="preserve">
+    <value>Status</value>
+  </data>
+  <data name="Compose_HeaderServices.Text" xml:space="preserve">
+    <value>Services</value>
+  </data>
+  <data name="Compose_HeaderWorkingDir.Text" xml:space="preserve">
+    <value>Working directory</value>
+  </data>
+  <data name="Compose_HeaderConfigFiles.Text" xml:space="preserve">
+    <value>Config files</value>
+  </data>
+  <data name="Compose_EmptyText.Text" xml:space="preserve">
+    <value>No compose projects found. Projects that were started with docker compose appear here.</value>
+  </data>
+  <data name="Compose_MenuStart.Text" xml:space="preserve">
+    <value>Start</value>
+  </data>
+  <data name="Compose_MenuStop.Text" xml:space="preserve">
+    <value>Stop</value>
+  </data>
+  <data name="Compose_MenuRestart.Text" xml:space="preserve">
+    <value>Restart</value>
+  </data>
+  <data name="Compose_MenuDown.Text" xml:space="preserve">
+    <value>Down</value>
+  </data>
   <data name="Images_RefreshButton.Label" xml:space="preserve">
     <value>Refresh</value>
   </data>
   <data name="Images_DeleteButton.Label" xml:space="preserve">
     <value>Delete</value>
   </data>
+  <data name="Images_PruneButton.Label" xml:space="preserve">
+    <value>Prune</value>
+  </data>
   <data name="Images_ErrorInfoBar.Title" xml:space="preserve">
     <value>Docker error</value>
+  </data>
+  <data name="Images_StatusInfoBar.Title" xml:space="preserve">
+    <value>Done</value>
   </data>
   <data name="Images_HeaderRepository.Text" xml:space="preserve">
     <value>Repository</value>
@@ -188,14 +384,23 @@
   <data name="Images_EmptyText.Text" xml:space="preserve">
     <value>No images found.</value>
   </data>
+  <data name="Images_MenuDelete.Text" xml:space="preserve">
+    <value>Delete</value>
+  </data>
   <data name="Volumes_RefreshButton.Label" xml:space="preserve">
     <value>Refresh</value>
   </data>
   <data name="Volumes_DeleteButton.Label" xml:space="preserve">
     <value>Delete</value>
   </data>
+  <data name="Volumes_PruneButton.Label" xml:space="preserve">
+    <value>Prune</value>
+  </data>
   <data name="Volumes_ErrorInfoBar.Title" xml:space="preserve">
     <value>Docker error</value>
+  </data>
+  <data name="Volumes_StatusInfoBar.Title" xml:space="preserve">
+    <value>Done</value>
   </data>
   <data name="Volumes_HeaderName.Text" xml:space="preserve">
     <value>Name</value>
@@ -211,6 +416,9 @@
   </data>
   <data name="Volumes_EmptyText.Text" xml:space="preserve">
     <value>No volumes found.</value>
+  </data>
+  <data name="Volumes_MenuDelete.Text" xml:space="preserve">
+    <value>Delete</value>
   </data>
   <data name="Logs_TitleText.Text" xml:space="preserve">
     <value>Logs</value>
@@ -232,5 +440,14 @@
   </data>
   <data name="Logs_ErrorInfoBar.Title" xml:space="preserve">
     <value>Docker error</value>
+  </data>
+  <data name="Settings_TitleText.Text" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="Settings_RefreshIntervalComboBox.Header" xml:space="preserve">
+    <value>Auto-refresh</value>
+  </data>
+  <data name="Settings_RefreshIntervalDescription.Text" xml:space="preserve">
+    <value>How often the lists reload themselves. Choose Off to reload only when you press Refresh.</value>
   </data>
 </root>

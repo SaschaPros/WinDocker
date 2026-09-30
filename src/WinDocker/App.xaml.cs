@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Xaml;
 using WinDocker.Core.Services;
+using WinDocker.Core.Settings;
 using WinDocker.Core.ViewModels;
 using WinDocker.Services;
 
@@ -33,12 +34,16 @@ public partial class App : Application
         services.AddSingleton<IDockerService>(_ => new DockerService());
         services.AddSingleton<ILocalizer, ResourceLocalizer>();
         services.AddSingleton<IDialogService, DialogService>();
+        services.AddSingleton<ISettingsStore>(_ => new JsonSettingsStore(JsonSettingsStore.DefaultPath));
+        services.AddSingleton<SettingsService>();
         services.AddSingleton(TimeProvider.System);
 
         services.AddTransient<ContainersViewModel>();
+        services.AddTransient<ComposeViewModel>();
         services.AddTransient<ImagesViewModel>();
         services.AddTransient<VolumesViewModel>();
         services.AddTransient<LogsViewModel>();
+        services.AddTransient<SettingsViewModel>();
 
         return services.BuildServiceProvider();
     }
