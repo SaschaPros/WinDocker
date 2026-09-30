@@ -12,6 +12,9 @@ jobs:
   core:
     name: Core tests (Linux)
     runs-on: ubuntu-latest
+    env:
+      # Lets the prune integration tests run. They only prune with a label filter on resources they created themselves.
+      WINDOCKER_DESTRUCTIVE_TESTS: "1"
     steps:
       - uses: actions/checkout@v5
 

@@ -57,6 +57,146 @@ public class ModelTests
         Assert.Equal(requiresForce, container.RequiresForceRemove);
     }
 
+    [Theory]
+    [InlineData("shop", "web", "shop / web")]
+    [InlineData("shop", "", "shop")]
+    public void ContainerInfo_ProjectTextJoinsTheProjectAndTheService(string project, string service, string expected) =>
+        Assert.Equal(expected, (Container() with { Compose = new ComposeLabels(project, service, null, null, false) }).ProjectText);
+
+    [Fact]
+    public void ContainerInfo_ProjectTextIsEmptyWithoutAComposeProject()
+    {
+        Assert.Null(Container().Compose);
+        Assert.Equal(string.Empty, Container().ProjectText);
+    }
+
+    [Fact]
+    public void ContainerInfo_IsEqualWhenTheComposeLabelsAreEqual()
+    {
+        var first = Container() with { Compose = new ComposeLabels("shop", "web", "/srv/shop", "/srv/shop/compose.yaml", false) };
+        var second = Container() with { Compose = new ComposeLabels("shop", "web", "/srv/shop", "/srv/shop/compose.yaml", false) };
+
+        Assert.Equal(first, second);
+        Assert.Equal(first.GetHashCode(), second.GetHashCode());
+        Assert.NotEqual(first, first with { Compose = first.Compose! with { IsOneOff = true } });
+        Assert.NotEqual(first, Container());
+    }
+
+    [Theory]
+    [InlineData("running", false, true)]
+    [InlineData("exited", true, false)]
+    [InlineData("created", true, false)]
+    [InlineData("paused", false, true)]
+    [InlineData("restarting", false, true)]
+    [InlineData("dead", false, false)]
+    [InlineData("removing", false, false)]
+    public void ComposeContainer_DerivesActionsFromTheState(string state, bool canStart, bool canStop)
+    {
+        var container = new ComposeContainer("c1", "shop-web-1", "web", state, Instant, false);
+
+        Assert.Equal(canStart, container.CanStart);
+        Assert.Equal(canStop, container.CanStop);
+    }
+
+    private static ComposeProjectInfo Project() => new(
+        "shop",
+        "/srv/shop",
+        "/srv/shop/compose.yaml",
+        ["db", "web"],
+        1,
+        2,
+        [
+            new ComposeContainer("c1", "shop-db-1", "db", "running", Instant, false),
+            new ComposeContainer("c2", "shop-web-1", "web", "exited", Instant.AddSeconds(1), false),
+        ],
+        Instant);
+
+    [Fact]
+    public void ComposeProjectInfo_IsEqualWhenTheListsHaveTheSameContents()
+    {
+        var first = Project();
+        var second = Project();
+
+        Assert.NotSame(first.Services, second.Services);
+        Assert.NotSame(first.Containers, second.Containers);
+        Assert.Equal(first, second);
+        Assert.True(first == second);
+        Assert.False(first != second);
+        Assert.Equal(first.GetHashCode(), second.GetHashCode());
+        Assert.False(first.Equals(null));
+    }
+
+    [Fact]
+    public void ComposeProjectInfo_DiffersWhenAnyMemberDiffers()
+    {
+        var project = Project();
+
+        Assert.NotEqual(project, project with { Name = "blog" });
+        Assert.NotEqual(project, project with { WorkingDir = "/srv/other" });
+        Assert.NotEqual(project, project with { WorkingDir = null });
+        Assert.NotEqual(project, project with { ConfigFiles = null });
+        Assert.NotEqual(project, project with { RunningCount = 2 });
+        Assert.NotEqual(project, project with { TotalCount = 3 });
+        Assert.NotEqual(project, project with { CreatedAt = Instant.AddSeconds(1) });
+        Assert.NotEqual(project, project with { Services = ["db"] });
+        Assert.NotEqual(project, project with { Services = ["web", "db"] });
+        Assert.NotEqual(project, project with { Containers = [project.Containers[0]] });
+        Assert.NotEqual(project, project with { Containers = [.. project.Containers.Reverse()] });
+        Assert.NotEqual(project, project with { Containers = [project.Containers[0] with { State = "exited" }, project.Containers[1]] });
+    }
+
+    [Fact]
+    public void ComposeProjectInfo_JoinsTheServicesIntoText()
+    {
+        Assert.Equal("db, web", Project().ServicesText);
+        Assert.Equal(string.Empty, (Project() with { Services = [] }).ServicesText);
+    }
+
+    [Fact]
+    public void ComposeProjectInfo_CanStartAndStopFollowTheStatesOfItsContainers()
+    {
+        var mixed = Project();
+        var running = mixed with { Containers = [mixed.Containers[0]] };
+        var exited = mixed with { Containers = [mixed.Containers[1]] };
+        var none = mixed with { Containers = [] };
+
+        Assert.True(mixed.CanStart);
+        Assert.True(mixed.CanStop);
+        Assert.False(running.CanStart);
+        Assert.True(running.CanStop);
+        Assert.True(exited.CanStart);
+        Assert.False(exited.CanStop);
+        Assert.False(none.CanStart);
+        Assert.False(none.CanStop);
+    }
+
+    [Fact]
+    public void ComposeProjectInfo_LeavesOneOffContainersOutOfWhatCanBeStartedAndStopped()
+    {
+        var project = Project();
+        var oneOffs = project with
+        {
+            Containers =
+            [
+                new ComposeContainer("r1", "shop-web-run-1", "web", "exited", Instant, true),
+                new ComposeContainer("r2", "shop-web-run-2", "web", "running", Instant, true),
+            ],
+        };
+        var withService = oneOffs with { Containers = [.. oneOffs.Containers, project.Containers[0]] };
+
+        Assert.False(oneOffs.CanStart);
+        Assert.False(oneOffs.CanStop);
+        Assert.False(oneOffs.HasServiceContainers);
+        Assert.False(withService.CanStart);
+        Assert.True(withService.CanStop);
+        Assert.True(withService.HasServiceContainers);
+        Assert.False((project with { Containers = [] }).HasServiceContainers);
+    }
+
+    [Fact]
+    public void PruneResult_IsEqualByValue() =>
+        Assert.Equal(new PruneResult(2, 1_500_000), new PruneResult(2, 1_500_000));
+
     [Fact]
     public void ImageInfo_UsesRepositoryAndTagAsReference()
     {

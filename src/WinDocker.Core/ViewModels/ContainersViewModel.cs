@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using WinDocker.Core.Collections;
+using WinDocker.Core.Docker;
 using WinDocker.Core.Localization;
 using WinDocker.Core.Models;
 using WinDocker.Core.Services;
@@ -113,6 +114,29 @@ public sealed partial class ContainersViewModel : PageViewModelBase
             targets,
             container => docker.RemoveContainerAsync(container.Id, container.RequiresForceRemove),
             container => container.Name,
+            RefreshCoreAsync);
+    }
+
+    /// <summary>Removes all stopped containers after a warning. Needs no selection.</summary>
+    [RelayCommand]
+    private async Task PruneAsync()
+    {
+        var request = new ConfirmRequest(
+            Localizer.GetString(ResourceKeys.ConfirmPruneContainersTitle),
+            Localizer.GetString(ResourceKeys.ConfirmPruneContainersMessage),
+            Localizer.GetString(ResourceKeys.DialogPruneButton));
+        var confirmation = await ConfirmAsync(dialogs, request);
+        if (!confirmation.Confirmed)
+        {
+            return;
+        }
+
+        await RunMutationAsync(
+            async () =>
+            {
+                var result = await docker.PruneContainersAsync();
+                StatusMessage = Localizer.Format(ResourceKeys.PruneContainersResult, result.DeletedCount, DockerFormat.Size(result.SpaceReclaimed));
+            },
             RefreshCoreAsync);
     }
 

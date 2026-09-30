@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.Input;
 using WinDocker.Core.Collections;
+using WinDocker.Core.Docker;
 using WinDocker.Core.Localization;
 using WinDocker.Core.Models;
 using WinDocker.Core.Services;
@@ -88,6 +89,30 @@ public sealed partial class ImagesViewModel : PageViewModelBase
         }
 
         await RunBulkAsync(targets, image => docker.RemoveImageAsync(image.Reference), DisplayName, RefreshCoreAsync);
+    }
+
+    /// <summary>Removes the dangling images after a warning, or with the option checked all unused ones. Needs no selection.</summary>
+    [RelayCommand]
+    private async Task PruneAsync()
+    {
+        var request = new ConfirmRequest(
+            Localizer.GetString(ResourceKeys.ConfirmPruneImagesTitle),
+            Localizer.GetString(ResourceKeys.ConfirmPruneImagesMessage),
+            Localizer.GetString(ResourceKeys.DialogPruneButton),
+            Localizer.GetString(ResourceKeys.ConfirmPruneImagesAllOption));
+        var confirmation = await ConfirmAsync(dialogs, request);
+        if (!confirmation.Confirmed)
+        {
+            return;
+        }
+
+        await RunMutationAsync(
+            async () =>
+            {
+                var result = await docker.PruneImagesAsync(confirmation.OptionChecked);
+                StatusMessage = Localizer.Format(ResourceKeys.PruneImagesResult, result.DeletedCount, DockerFormat.Size(result.SpaceReclaimed));
+            },
+            RefreshCoreAsync);
     }
 
     private static string DisplayName(ImageInfo image) => image.IsUntagged ? image.ShortId : image.Reference;

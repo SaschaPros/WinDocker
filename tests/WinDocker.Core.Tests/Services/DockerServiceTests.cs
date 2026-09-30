@@ -162,6 +162,471 @@ public class DockerServiceTests
         Assert.False(force);
     }
 
+    /// <summary>The <c>name=value</c> pairs of a filter parameter, sorted; empty when the request has no filter.</summary>
+    private static string[] Flatten(IDictionary<string, IDictionary<string, bool>>? filters) =>
+        filters is null
+            ? []
+            : [.. filters
+                .SelectMany(filter => filter.Value.Where(value => value.Value).Select(value => $"{filter.Key}={value.Key}"))
+                .Order(StringComparer.Ordinal)];
+
+    private static Dictionary<string, string> ProjectLabels(string project) =>
+        new() { ["com.docker.compose.project"] = project, ["com.docker.compose.network"] = "default" };
+
+    private static ContainerListResponse ComposeContainer(string id, string project, string service, string state, DateTime created) =>
+        new()
+        {
+            ID = id,
+            Names = [$"/{project}-{service}-1"],
+            Image = "i",
+            Created = created,
+            State = state,
+            Labels = new Dictionary<string, string>
+            {
+                ["com.docker.compose.project"] = project,
+                ["com.docker.compose.service"] = service,
+                ["com.docker.compose.oneoff"] = "False",
+            },
+        };
+
+    [Fact]
+    public async Task RestartContainer_PassesTheContainerId()
+    {
+        var calls = new List<string>();
+        using var service = CreateService((method, args) =>
+        {
+            calls.Add($"{method.Name} {args[0]} {args[1]!.GetType().Name}");
+            return null;
+        });
+
+        await service.RestartContainerAsync("c1", TestContext.Current.CancellationToken);
+
+        Assert.Equal(["RestartContainerAsync c1 ContainerRestartParameters"], calls);
+    }
+
+    [Fact]
+    public async Task PruneContainers_SendsNoFilterAndCountsTheRemovedContainers()
+    {
+        ContainersPruneParameters? parameters = null;
+        using var service = CreateService((method, args) =>
+        {
+            Assert.Equal("PruneContainersAsync", method.Name);
+            parameters = (ContainersPruneParameters)args[0]!;
+            return new ContainersPruneResponse { ContainersDeleted = ["a", "b", "c"], SpaceReclaimed = 12_300_000 };
+        });
+
+        var result = await service.PruneContainersAsync(TestContext.Current.CancellationToken);
+
+        Assert.Null(parameters!.Filters);
+        Assert.Equal(new PruneResult(3, 12_300_000), result);
+    }
+
+    [Fact]
+    public async Task Prune_IsEmptyWhenTheEngineAnswersNullLists()
+    {
+        using var service = CreateService((method, _) => method.Name switch
+        {
+            "PruneContainersAsync" => new ContainersPruneResponse { ContainersDeleted = null!, SpaceReclaimed = 0 },
+            "PruneImagesAsync" => new ImagesPruneResponse { ImagesDeleted = null!, SpaceReclaimed = 0 },
+            "PruneAsync" => new VolumesPruneResponse { VolumesDeleted = null!, SpaceReclaimed = 0 },
+            _ => throw new NotSupportedException(method.Name),
+        });
+        var token = TestContext.Current.CancellationToken;
+
+        Assert.Equal(new PruneResult(0, 0), await service.PruneContainersAsync(token));
+        Assert.Equal(new PruneResult(0, 0), await service.PruneImagesAsync(allUnused: true, token));
+        Assert.Equal(new PruneResult(0, 0), await service.PruneVolumesAsync(includeNamed: true, token));
+    }
+
+    [Fact]
+    public async Task Prune_ClampsAnAbsurdlyLargeReclaimedSpace()
+    {
+        using var service = CreateService((_, _) => new ContainersPruneResponse { ContainersDeleted = ["a"], SpaceReclaimed = ulong.MaxValue });
+
+        var result = await service.PruneContainersAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(new PruneResult(1, long.MaxValue), result);
+    }
+
+    [Theory]
+    [InlineData(false, "dangling=true")]
+    [InlineData(true, "dangling=false")]
+    public async Task PruneImages_AsksForDanglingImagesOrForAllUnusedOnes(bool allUnused, string expectedFilter)
+    {
+        ImagesPruneParameters? parameters = null;
+        using var service = CreateService((method, args) =>
+        {
+            Assert.Equal("PruneImagesAsync", method.Name);
+            parameters = (ImagesPruneParameters)args[0]!;
+            return new ImagesPruneResponse { ImagesDeleted = [], SpaceReclaimed = 0 };
+        });
+
+        await service.PruneImagesAsync(allUnused, TestContext.Current.CancellationToken);
+
+        Assert.Equal([expectedFilter], Flatten(parameters!.Filters));
+    }
+
+    [Fact]
+    public async Task PruneImages_CountsTheDeletedImagesAndNotTheUntaggedOnes()
+    {
+        using var service = CreateService((_, _) => new ImagesPruneResponse
+        {
+            ImagesDeleted =
+            [
+                new ImageDeleteResponse { Untagged = "nginx:latest" },
+                new ImageDeleteResponse { Untagged = "nginx@sha256:aaa" },
+                new ImageDeleteResponse { Deleted = "sha256:bbb" },
+                new ImageDeleteResponse { Deleted = "sha256:ccc" },
+                new ImageDeleteResponse { Untagged = "redis:7", Deleted = string.Empty },
+            ],
+            SpaceReclaimed = 142_000_000,
+        });
+
+        var result = await service.PruneImagesAsync(allUnused: true, TestContext.Current.CancellationToken);
+
+        Assert.Equal(new PruneResult(2, 142_000_000), result);
+    }
+
+    [Theory]
+    [InlineData(false, new string[0])]
+    [InlineData(true, new[] { "all=true" })]
+    public async Task PruneVolumes_ExtendsThePruneToNamedVolumesOnlyWhenAsked(bool includeNamed, string[] expectedFilters)
+    {
+        VolumesPruneParameters? parameters = null;
+        using var service = CreateService((method, args) =>
+        {
+            Assert.Equal("PruneAsync", method.Name);
+            parameters = (VolumesPruneParameters)args[0]!;
+            return new VolumesPruneResponse { VolumesDeleted = ["data", "logs"], SpaceReclaimed = 4096 };
+        });
+
+        var result = await service.PruneVolumesAsync(includeNamed, TestContext.Current.CancellationToken);
+
+        Assert.Equal(expectedFilters, Flatten(parameters!.Filters));
+        Assert.Equal(new PruneResult(2, 4096), result);
+    }
+
+    [Fact]
+    public async Task Prune_WithALabelOnlyTouchesWhatCarriesTheLabel()
+    {
+        ContainersPruneParameters? containers = null;
+        ImagesPruneParameters? images = null;
+        VolumesPruneParameters? volumes = null;
+        using var service = CreateService((method, args) =>
+        {
+            switch (method.Name)
+            {
+                case "PruneContainersAsync":
+                    containers = (ContainersPruneParameters)args[0]!;
+                    return new ContainersPruneResponse { ContainersDeleted = [], SpaceReclaimed = 0 };
+                case "PruneImagesAsync":
+                    images = (ImagesPruneParameters)args[0]!;
+                    return new ImagesPruneResponse { ImagesDeleted = [], SpaceReclaimed = 0 };
+                case "PruneAsync":
+                    volumes = (VolumesPruneParameters)args[0]!;
+                    return new VolumesPruneResponse { VolumesDeleted = [], SpaceReclaimed = 0 };
+                default:
+                    throw new NotSupportedException(method.Name);
+            }
+        });
+        var token = TestContext.Current.CancellationToken;
+
+        await service.PruneContainersAsync("windocker-tests=x", token);
+        await service.PruneImagesAsync(allUnused: false, "windocker-tests=x", token);
+        await service.PruneVolumesAsync(includeNamed: true, "windocker-tests=x", token);
+
+        Assert.Equal(["label=windocker-tests=x"], Flatten(containers!.Filters));
+        Assert.Equal(["dangling=true", "label=windocker-tests=x"], Flatten(images!.Filters));
+        Assert.Equal(["all=true", "label=windocker-tests=x"], Flatten(volumes!.Filters));
+
+        await service.PruneVolumesAsync(includeNamed: false, "windocker-tests=x", token);
+
+        Assert.Equal(["label=windocker-tests=x"], Flatten(volumes.Filters));
+    }
+
+    [Fact]
+    public async Task ListComposeProjects_AsksForAllContainersWithAProjectLabelAndGroupsThem()
+    {
+        ContainersListParameters? parameters = null;
+        using var service = CreateService((_, args) =>
+        {
+            parameters = (ContainersListParameters)args[0]!;
+            return (IList<ContainerListResponse>)
+            [
+                ComposeContainer("c1", "shop", "web", "running", Newer),
+                ComposeContainer("c2", "shop", "db", "exited", Older),
+                ComposeContainer("c3", "blog", "app", "running", Newer),
+            ];
+        });
+
+        var projects = await service.ListComposeProjectsAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(parameters!.All);
+        Assert.Equal(["label=com.docker.compose.project"], Flatten(parameters.Filters));
+        Assert.Equal(["blog", "shop"], projects.Select(project => project.Name));
+        var shop = projects[1];
+        Assert.Equal(["db", "web"], shop.Services);
+        Assert.Equal(1, shop.RunningCount);
+        Assert.Equal(2, shop.TotalCount);
+        Assert.Equal(["c2", "c1"], shop.Containers.Select(container => container.Id));
+        Assert.Equal(new DateTimeOffset(Older), shop.CreatedAt);
+    }
+
+    [Fact]
+    public async Task ListComposeProjects_IgnoresContainersWithoutAProjectEvenWhenTheEngineIgnoresTheFilter()
+    {
+        using var service = CreateService((_, _) => (IList<ContainerListResponse>)
+        [
+            new ContainerListResponse { ID = "plain", Names = ["/plain"], Image = "i", Created = Newer, State = "running", Labels = null! },
+            ComposeContainer("c1", "shop", "web", "running", Newer),
+        ]);
+
+        var projects = await service.ListComposeProjectsAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(["shop"], projects.Select(project => project.Name));
+        Assert.Equal(1, projects[0].TotalCount);
+    }
+
+    [Fact]
+    public async Task ListComposeProjects_IsEmptyWithoutContainers()
+    {
+        using var service = CreateService((_, _) => (IList<ContainerListResponse>)[]);
+
+        Assert.Empty(await service.ListComposeProjectsAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task RemoveComposeNetworks_DeletesTheNetworksOfTheProjectOneByOne()
+    {
+        NetworksListParameters? parameters = null;
+        var deleted = new List<string>();
+        using var service = CreateService((method, args) =>
+        {
+            switch (method.Name)
+            {
+                case "ListNetworksAsync":
+                    parameters = (NetworksListParameters)args[0]!;
+                    return (IList<NetworkResponse>)
+                    [
+                        new NetworkResponse { ID = "n1", Name = "shop_default", Labels = ProjectLabels("shop") },
+                        new NetworkResponse { ID = "n2", Name = "shop_backend", Labels = ProjectLabels("shop") },
+                    ];
+                case "DeleteNetworkAsync":
+                    deleted.Add((string)args[0]!);
+                    return null;
+                default:
+                    throw new NotSupportedException(method.Name);
+            }
+        });
+
+        await service.RemoveComposeNetworksAsync("shop", TestContext.Current.CancellationToken);
+
+        Assert.Equal(["label=com.docker.compose.project=shop"], Flatten(parameters!.Filters));
+        Assert.Equal(["n1", "n2"], deleted);
+    }
+
+    [Fact]
+    public async Task RemoveComposeNetworks_LeavesTheNetworksOfOtherProjectsAloneWhenTheEngineIgnoresTheFilter()
+    {
+        var deleted = new List<string>();
+        using var service = CreateService((method, args) =>
+        {
+            if (method.Name == "DeleteNetworkAsync")
+            {
+                deleted.Add((string)args[0]!);
+                return null;
+            }
+
+            return (IList<NetworkResponse>)
+            [
+                new NetworkResponse { ID = "n1", Name = "shop_default", Labels = ProjectLabels("shop") },
+                new NetworkResponse { ID = "n2", Name = "blog_default", Labels = ProjectLabels("blog") },
+                new NetworkResponse { ID = "n3", Name = "bridge", Labels = null! },
+                new NetworkResponse { ID = "n4", Name = "custom", Labels = new Dictionary<string, string> { ["team"] = "shop" } },
+            ];
+        });
+
+        await service.RemoveComposeNetworksAsync("shop", TestContext.Current.CancellationToken);
+
+        Assert.Equal(["n1"], deleted);
+    }
+
+    [Fact]
+    public async Task RemoveComposeNetworks_DoesNothingWhenTheProjectHasNoNetworks()
+    {
+        var calls = new List<string>();
+        using var service = CreateService((method, _) =>
+        {
+            calls.Add(method.Name);
+            return (IList<NetworkResponse>)[];
+        });
+
+        await service.RemoveComposeNetworksAsync("shop", TestContext.Current.CancellationToken);
+
+        Assert.Equal(["ListNetworksAsync"], calls);
+    }
+
+    [Fact]
+    public async Task RemoveComposeNetworks_StopsAtTheFirstFailureAndLetsTheEnginesErrorPass()
+    {
+        var failure = new DockerApiException(HttpStatusCode.Forbidden, """{"message":"network has active endpoints"}""");
+        var deleted = new List<string>();
+        using var service = CreateService((method, args) =>
+        {
+            if (method.Name == "DeleteNetworkAsync")
+            {
+                deleted.Add((string)args[0]!);
+                throw failure;
+            }
+
+            return (IList<NetworkResponse>)
+            [
+                new NetworkResponse { ID = "n1", Labels = ProjectLabels("shop") },
+                new NetworkResponse { ID = "n2", Labels = ProjectLabels("shop") },
+            ];
+        });
+
+        var exception = await Assert.ThrowsAsync<DockerApiException>(
+            () => service.RemoveComposeNetworksAsync("shop", TestContext.Current.CancellationToken));
+
+        Assert.Same(failure, exception);
+        Assert.Equal(["n1"], deleted);
+    }
+
+    [Fact]
+    public async Task RemoveComposeVolumes_RemovesTheVolumesOfTheProjectWithoutForce()
+    {
+        VolumesListParameters? parameters = null;
+        var removed = new List<string>();
+        using var service = CreateService((method, args) =>
+        {
+            switch (method.Name)
+            {
+                case "ListAsync":
+                    parameters = (VolumesListParameters)args[0]!;
+                    return new VolumesListResponse
+                    {
+                        Volumes =
+                        [
+                            new VolumeResponse { Name = "shop_data", Labels = ProjectLabels("shop") },
+                            new VolumeResponse { Name = "shop_logs", Labels = ProjectLabels("shop") },
+                        ],
+                    };
+                case "RemoveAsync":
+                    removed.Add($"{args[0]} force={args[1]}");
+                    return null;
+                default:
+                    throw new NotSupportedException(method.Name);
+            }
+        });
+
+        await service.RemoveComposeVolumesAsync("shop", TestContext.Current.CancellationToken);
+
+        Assert.Equal(["label=com.docker.compose.project=shop"], Flatten(parameters!.Filters));
+        Assert.Equal(["shop_data force=False", "shop_logs force=False"], removed);
+    }
+
+    [Fact]
+    public async Task RemoveComposeVolumes_LeavesTheVolumesOfOtherProjectsAloneWhenTheEngineIgnoresTheFilter()
+    {
+        var removed = new List<string>();
+        using var service = CreateService((method, args) =>
+        {
+            if (method.Name == "RemoveAsync")
+            {
+                removed.Add((string)args[0]!);
+                return null;
+            }
+
+            return new VolumesListResponse
+            {
+                Volumes =
+                [
+                    new VolumeResponse { Name = "shop_data", Labels = ProjectLabels("shop") },
+                    new VolumeResponse { Name = "blog_data", Labels = ProjectLabels("blog") },
+                    new VolumeResponse { Name = "plain", Labels = null! },
+                ],
+            };
+        });
+
+        await service.RemoveComposeVolumesAsync("shop", TestContext.Current.CancellationToken);
+
+        Assert.Equal(["shop_data"], removed);
+    }
+
+    [Fact]
+    public async Task RemoveComposeVolumes_DoesNothingWhenTheEngineAnswersNull()
+    {
+        var calls = new List<string>();
+        using var service = CreateService((method, _) =>
+        {
+            calls.Add(method.Name);
+            return new VolumesListResponse { Volumes = null! };
+        });
+
+        await service.RemoveComposeVolumesAsync("shop", TestContext.Current.CancellationToken);
+
+        Assert.Equal(["ListAsync"], calls);
+    }
+
+    [Fact]
+    public async Task RemoveComposeVolumes_StopsAtTheFirstFailureAndLetsTheEnginesErrorPass()
+    {
+        var failure = new DockerApiException(HttpStatusCode.Conflict, """{"message":"volume is in use"}""");
+        var removed = new List<string>();
+        using var service = CreateService((method, args) =>
+        {
+            if (method.Name == "RemoveAsync")
+            {
+                removed.Add((string)args[0]!);
+                throw failure;
+            }
+
+            return new VolumesListResponse
+            {
+                Volumes =
+                [
+                    new VolumeResponse { Name = "shop_data", Labels = ProjectLabels("shop") },
+                    new VolumeResponse { Name = "shop_logs", Labels = ProjectLabels("shop") },
+                ],
+            };
+        });
+
+        var exception = await Assert.ThrowsAsync<DockerApiException>(
+            () => service.RemoveComposeVolumesAsync("shop", TestContext.Current.CancellationToken));
+
+        Assert.Same(failure, exception);
+        Assert.Equal(["shop_data"], removed);
+    }
+
+    private static readonly (string Name, Func<DockerService, Task> Call)[] NewOperations =
+    [
+        ("RestartContainer", service => service.RestartContainerAsync("c1")),
+        ("PruneContainers", service => service.PruneContainersAsync()),
+        ("PruneImages", service => service.PruneImagesAsync(allUnused: true)),
+        ("PruneVolumes", service => service.PruneVolumesAsync(includeNamed: true)),
+        ("ListComposeProjects", service => service.ListComposeProjectsAsync()),
+        ("RemoveComposeNetworks", service => service.RemoveComposeNetworksAsync("shop")),
+        ("RemoveComposeVolumes", service => service.RemoveComposeVolumesAsync("shop")),
+    ];
+
+    [Fact]
+    public async Task PruneRestartAndComposeCalls_TranslateConnectivityFailuresAndLetApiErrorsPass()
+    {
+        var apiError = new DockerApiException(HttpStatusCode.Conflict, """{"message":"conflict"}""");
+
+        foreach (var (name, call) in NewOperations)
+        {
+            using var unreachable = CreateFailingService(new IOException("pipe broken"));
+            var unavailable = await Record.ExceptionAsync(() => call(unreachable));
+            Assert.True(unavailable is DockerUnavailableException, $"{name} threw {unavailable?.GetType().Name ?? "nothing"}.");
+
+            using var rejecting = CreateFailingService(apiError);
+            var rejected = await Record.ExceptionAsync(() => call(rejecting));
+            Assert.True(ReferenceEquals(apiError, rejected), $"{name} threw {rejected?.GetType().Name ?? "nothing"}.");
+        }
+    }
+
     public static TheoryData<Exception> ConnectivityFailures =>
     [
         new HttpRequestException("Connection failed.", new SocketException((int)SocketError.ConnectionRefused)),

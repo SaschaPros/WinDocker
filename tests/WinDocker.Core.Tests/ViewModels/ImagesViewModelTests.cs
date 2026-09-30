@@ -255,4 +255,114 @@ public class ImagesViewModelTests
         Assert.Equal(ResourceKeys.ErrorDockerUnavailable, viewModel.ErrorMessage);
         Assert.False(viewModel.IsEmpty);
     }
+
+    [Fact]
+    public async Task Prune_DoesNothingWhenTheUserDeclines()
+    {
+        var viewModel = await LoadedViewModelAsync();
+        dialogs.Script(new ConfirmResult(false, false), new ConfirmResult(false, true));
+        docker.Calls.Clear();
+
+        await viewModel.PruneCommand.ExecuteAsync(null);
+        await viewModel.PruneCommand.ExecuteAsync(null);
+
+        Assert.Equal(2, dialogs.Requests.Count);
+        Assert.Empty(docker.Calls);
+        Assert.Null(viewModel.StatusMessage);
+        Assert.False(viewModel.HasError);
+    }
+
+    [Fact]
+    public async Task Prune_WarnsWithTheOptionThenPrunesOnlyDanglingImagesAndReloads()
+    {
+        var viewModel = await LoadedViewModelAsync();
+        docker.PruneResult = new PruneResult(1, 7_830_000);
+        docker.Images.RemoveAt(2);
+        docker.Calls.Clear();
+
+        await viewModel.PruneCommand.ExecuteAsync(null);
+
+        var request = Assert.Single(dialogs.Requests);
+        Assert.Equal(ResourceKeys.ConfirmPruneImagesTitle, request.Title);
+        Assert.Equal(ResourceKeys.ConfirmPruneImagesMessage, request.Message);
+        Assert.Equal(ResourceKeys.DialogPruneButton, request.PrimaryButtonText);
+        Assert.Equal(ResourceKeys.ConfirmPruneImagesAllOption, request.OptionText);
+        Assert.Equal(["PruneImages all=False", "ListImages"], docker.Calls);
+        Assert.Equal(["nginx:1.27", "nginx:latest"], References(viewModel));
+        Assert.False(viewModel.HasError);
+    }
+
+    [Fact]
+    public async Task Prune_WithTheOptionCheckedPrunesAllUnusedImages()
+    {
+        var viewModel = await LoadedViewModelAsync();
+        dialogs.Script(new ConfirmResult(true, true));
+        docker.Calls.Clear();
+
+        await viewModel.PruneCommand.ExecuteAsync(null);
+
+        Assert.Equal(["PruneImages all=True", "ListImages"], docker.Calls);
+    }
+
+    [Fact]
+    public async Task Prune_ReportsTheNumberOfRemovedImagesAndTheReclaimedSpace()
+    {
+        var viewModel = await LoadedViewModelAsync();
+        docker.PruneResult = new PruneResult(3, 142_000_000);
+
+        await viewModel.PruneCommand.ExecuteAsync(null);
+
+        Assert.Equal($"{ResourceKeys.PruneImagesResult}|3|142MB", viewModel.StatusMessage);
+        Assert.True(viewModel.HasStatus);
+    }
+
+    [Fact]
+    public async Task Prune_NeedsNoSelection()
+    {
+        var viewModel = CreateViewModel();
+        Assert.True(viewModel.PruneCommand.CanExecute(null));
+
+        await viewModel.RefreshCommand.ExecuteAsync(null);
+        Assert.True(viewModel.PruneCommand.CanExecute(null));
+        Assert.False(viewModel.HasSelection);
+    }
+
+    [Fact]
+    public async Task Prune_ShowsTheEnginesErrorAsTheErrorOfTheActionAndStillReloads()
+    {
+        var viewModel = await LoadedViewModelAsync();
+        docker.MutationFailure = new DockerApiException(HttpStatusCode.Conflict, """{"message":"a prune operation is already running"}""");
+        docker.Calls.Clear();
+
+        await viewModel.PruneCommand.ExecuteAsync(null);
+
+        Assert.Equal("a prune operation is already running", viewModel.ErrorMessage);
+        Assert.Null(viewModel.StatusMessage);
+        Assert.Equal(["PruneImages all=False", "ListImages"], docker.Calls);
+
+        // Like any error of an action, it stays when a background refresh succeeds.
+        await viewModel.RefreshQuietlyAsync();
+
+        Assert.Equal("a prune operation is already running", viewModel.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task Prune_ConfirmationPausesTheBackgroundRefresh()
+    {
+        var viewModel = await LoadedViewModelAsync();
+        var answer = new TaskCompletionSource<ConfirmResult>();
+        dialogs.Handler = _ => answer.Task;
+        docker.Calls.Clear();
+
+        var prune = viewModel.PruneCommand.ExecuteAsync(null);
+        await viewModel.RefreshQuietlyAsync();
+
+        Assert.Empty(docker.Calls);
+
+        answer.SetResult(new ConfirmResult(false, false));
+        await prune;
+        await viewModel.RefreshQuietlyAsync();
+
+        Assert.Equal(["ListImages"], docker.Calls);
+    }
 }

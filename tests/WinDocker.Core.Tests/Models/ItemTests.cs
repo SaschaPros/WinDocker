@@ -13,6 +13,16 @@ public class ItemTests
 
     private static VolumeInfo Volume(string mountpoint = "/data") => new("data", "local", mountpoint, null);
 
+    private static ComposeProjectInfo Project(string state = "running") => new(
+        "shop",
+        "/srv/shop",
+        null,
+        ["web"],
+        state == "running" ? 1 : 0,
+        1,
+        [new ComposeContainer("c1", "shop-web-1", "web", state, Created, false)],
+        Created);
+
     private static List<string?> Changes(System.ComponentModel.INotifyPropertyChanged item)
     {
         var raised = new List<string?>();
@@ -111,13 +121,68 @@ public class ItemTests
     }
 
     [Fact]
+    public void ComposeProjectItem_ExposesTheNameAndTheInitialInfo()
+    {
+        var info = Project();
+
+        var item = new ComposeProjectItem(info);
+
+        Assert.Equal("shop", item.Name);
+        Assert.Same(info, item.Info);
+        Assert.Equal(string.Empty, item.StatusText);
+    }
+
+    [Fact]
+    public void ComposeProjectItem_Update_IgnoresAnEqualProjectWhoseListsAreOtherInstances()
+    {
+        var original = Project();
+        var item = new ComposeProjectItem(original);
+        var raised = Changes(item);
+
+        item.Update(Project());
+
+        Assert.Same(original, item.Info);
+        Assert.Empty(raised);
+    }
+
+    [Fact]
+    public void ComposeProjectItem_Update_TakesOverADifferentProjectAndRaisesInfoChanged()
+    {
+        var item = new ComposeProjectItem(Project("running"));
+        var raised = Changes(item);
+        var stopped = Project("exited");
+
+        item.Update(stopped);
+
+        Assert.Same(stopped, item.Info);
+        Assert.Equal(["Info"], raised);
+        Assert.Equal("shop", item.Name);
+    }
+
+    [Fact]
+    public void ComposeProjectItem_StatusText_RaisesOnlyWhenItChanges()
+    {
+        var item = new ComposeProjectItem(Project());
+        var raised = Changes(item);
+
+        item.StatusText = "Running (1/1)";
+        item.StatusText = "Running (1/1)";
+        item.StatusText = "Exited";
+
+        Assert.Equal(["StatusText", "StatusText"], raised);
+        Assert.Equal("Exited", item.StatusText);
+    }
+
+    [Fact]
     public void Items_RejectMissingInfo()
     {
         Assert.Throws<ArgumentNullException>(() => new ContainerItem(null!));
         Assert.Throws<ArgumentNullException>(() => new ImageItem(null!));
         Assert.Throws<ArgumentNullException>(() => new VolumeItem(null!));
+        Assert.Throws<ArgumentNullException>(() => new ComposeProjectItem(null!));
         Assert.Throws<ArgumentNullException>(() => new ContainerItem(Container()).Update(null!));
         Assert.Throws<ArgumentNullException>(() => new ImageItem(Image()).Update(null!));
         Assert.Throws<ArgumentNullException>(() => new VolumeItem(Volume()).Update(null!));
+        Assert.Throws<ArgumentNullException>(() => new ComposeProjectItem(Project()).Update(null!));
     }
 }

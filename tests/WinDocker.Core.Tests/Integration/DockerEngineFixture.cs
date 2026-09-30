@@ -5,7 +5,7 @@ namespace WinDocker.Core.Tests.Integration;
 
 /// <summary>
 /// Finds out once whether a Docker engine answers a ping, and hands out a raw client to prepare test data.
-/// Every container this test project creates carries <see cref="TestLabel"/> so leftovers can be cleaned up.
+/// Every container, network, volume and image this test project creates carries <see cref="TestLabel"/> so leftovers can be cleaned up.
 /// </summary>
 public sealed class DockerEngineFixture : IAsyncLifetime
 {
@@ -108,23 +108,55 @@ public sealed class DockerEngineFixture : IAsyncLifetime
 
     private async Task RemoveLeftoversAsync()
     {
-        try
-        {
-            var leftovers = await Client!.Containers.ListContainersAsync(
-                new ContainersListParameters
-                {
-                    All = true,
-                    Filters = new Dictionary<string, IDictionary<string, bool>> { ["label"] = new Dictionary<string, bool> { [TestLabel] = true } },
-                });
+        var label = new Dictionary<string, IDictionary<string, bool>> { ["label"] = new Dictionary<string, bool> { [TestLabel] = true } };
 
-            foreach (var container in leftovers)
+        // Containers first: they hold on to the networks, volumes and images.
+        await RemoveQuietlyAsync(async () =>
+        {
+            var containers = await Client!.Containers.ListContainersAsync(new ContainersListParameters { All = true, Filters = label });
+            foreach (var container in containers)
             {
                 await Client.Containers.RemoveContainerAsync(container.ID, new ContainerRemoveParameters { Force = true });
             }
+        });
+
+        await RemoveQuietlyAsync(async () =>
+        {
+            var networks = await Client!.Networks.ListNetworksAsync(new NetworksListParameters { Filters = label });
+            foreach (var network in networks)
+            {
+                await Client.Networks.DeleteNetworkAsync(network.ID);
+            }
+        });
+
+        await RemoveQuietlyAsync(async () =>
+        {
+            var volumes = await Client!.Volumes.ListAsync(new VolumesListParameters { Filters = label });
+            foreach (var volume in volumes.Volumes ?? [])
+            {
+                await Client.Volumes.RemoveAsync(volume.Name, force: true);
+            }
+        });
+
+        await RemoveQuietlyAsync(async () =>
+        {
+            var images = await Client!.Images.ListImagesAsync(new ImagesListParameters { Filters = label });
+            foreach (var image in images)
+            {
+                await Client.Images.DeleteImageAsync(image.ID, new ImageDeleteParameters { Force = true });
+            }
+        });
+    }
+
+    /// <summary>Every kind of leftover is removed on a best effort basis: a failure must not keep the others from being cleaned up.</summary>
+    private static async Task RemoveQuietlyAsync(Func<Task> remove)
+    {
+        try
+        {
+            await remove();
         }
         catch (Exception)
         {
-            // Best effort.
         }
     }
 }

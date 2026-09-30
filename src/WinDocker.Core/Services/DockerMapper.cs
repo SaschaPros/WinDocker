@@ -19,7 +19,8 @@ internal static class DockerMapper
         ToDateTimeOffset(container.Created),
         container.State,
         container.Status,
-        DockerFormat.Ports(container.Ports?.Select(port => new PortMapping(port.IP, port.PrivatePort, port.PublicPort, port.Type))));
+        DockerFormat.Ports(container.Ports?.Select(port => new PortMapping(port.IP, port.PrivatePort, port.PublicPort, port.Type))),
+        ToComposeLabels(container.Labels));
 
     /// <summary>
     /// Expands an image into one row per repository:tag like <c>docker images</c>. An image that is only known
@@ -64,6 +65,26 @@ internal static class DockerMapper
         DateTimeOffset.TryParse(volume.CreatedAt, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var createdAt)
             ? createdAt
             : null);
+
+    /// <summary>Reads the compose labels of a container; <see langword="null"/> when it does not belong to a compose project.</summary>
+    private static ComposeLabels? ToComposeLabels(IDictionary<string, string>? labels)
+    {
+        if (Label(labels, ComposeLabelNames.Project) is not { } project)
+        {
+            return null;
+        }
+
+        return new ComposeLabels(
+            project,
+            Label(labels, ComposeLabelNames.Service) ?? string.Empty,
+            Label(labels, ComposeLabelNames.WorkingDir),
+            Label(labels, ComposeLabelNames.ConfigFiles),
+            string.Equals(Label(labels, ComposeLabelNames.OneOff), bool.TrueString, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <returns>The value of the label, or <see langword="null"/> when it is missing or empty.</returns>
+    private static string? Label(IDictionary<string, string>? labels, string name) =>
+        labels is not null && labels.TryGetValue(name, out var value) && !string.IsNullOrEmpty(value) ? value : null;
 
     private static bool TrySplitRepoTag(string repoTag, out string repository, out string tag)
     {

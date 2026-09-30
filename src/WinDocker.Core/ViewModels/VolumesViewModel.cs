@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.Input;
 using WinDocker.Core.Collections;
+using WinDocker.Core.Docker;
 using WinDocker.Core.Localization;
 using WinDocker.Core.Models;
 using WinDocker.Core.Services;
@@ -88,6 +89,30 @@ public sealed partial class VolumesViewModel : PageViewModelBase
         }
 
         await RunBulkAsync(targets, volume => docker.RemoveVolumeAsync(volume.Name), volume => volume.Name, RefreshCoreAsync);
+    }
+
+    /// <summary>Removes the anonymous volumes that no container uses after a warning, or with the option checked the named ones as well. Needs no selection.</summary>
+    [RelayCommand]
+    private async Task PruneAsync()
+    {
+        var request = new ConfirmRequest(
+            Localizer.GetString(ResourceKeys.ConfirmPruneVolumesTitle),
+            Localizer.GetString(ResourceKeys.ConfirmPruneVolumesMessage),
+            Localizer.GetString(ResourceKeys.DialogPruneButton),
+            Localizer.GetString(ResourceKeys.ConfirmPruneVolumesNamedOption));
+        var confirmation = await ConfirmAsync(dialogs, request);
+        if (!confirmation.Confirmed)
+        {
+            return;
+        }
+
+        await RunMutationAsync(
+            async () =>
+            {
+                var result = await docker.PruneVolumesAsync(confirmation.OptionChecked);
+                StatusMessage = Localizer.Format(ResourceKeys.PruneVolumesResult, result.DeletedCount, DockerFormat.Size(result.SpaceReclaimed));
+            },
+            RefreshCoreAsync);
     }
 
     private bool CanRemoveSelected() => HasSelection;

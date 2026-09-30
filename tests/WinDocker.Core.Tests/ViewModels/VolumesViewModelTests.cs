@@ -211,4 +211,114 @@ public class VolumesViewModelTests
         Assert.Equal(ResourceKeys.ErrorDockerUnavailable, viewModel.ErrorMessage);
         Assert.False(viewModel.IsEmpty);
     }
+
+    [Fact]
+    public async Task Prune_DoesNothingWhenTheUserDeclines()
+    {
+        var viewModel = await LoadedViewModelAsync();
+        dialogs.Script(new ConfirmResult(false, false), new ConfirmResult(false, true));
+        docker.Calls.Clear();
+
+        await viewModel.PruneCommand.ExecuteAsync(null);
+        await viewModel.PruneCommand.ExecuteAsync(null);
+
+        Assert.Equal(2, dialogs.Requests.Count);
+        Assert.Empty(docker.Calls);
+        Assert.Null(viewModel.StatusMessage);
+        Assert.False(viewModel.HasError);
+    }
+
+    [Fact]
+    public async Task Prune_WarnsWithTheOptionThenPrunesOnlyAnonymousVolumesAndReloads()
+    {
+        var viewModel = await LoadedViewModelAsync();
+        docker.PruneResult = new PruneResult(1, 4096);
+        docker.Volumes.RemoveAt(0);
+        docker.Calls.Clear();
+
+        await viewModel.PruneCommand.ExecuteAsync(null);
+
+        var request = Assert.Single(dialogs.Requests);
+        Assert.Equal(ResourceKeys.ConfirmPruneVolumesTitle, request.Title);
+        Assert.Equal(ResourceKeys.ConfirmPruneVolumesMessage, request.Message);
+        Assert.Equal(ResourceKeys.DialogPruneButton, request.PrimaryButtonText);
+        Assert.Equal(ResourceKeys.ConfirmPruneVolumesNamedOption, request.OptionText);
+        Assert.Equal(["PruneVolumes includeNamed=False", "ListVolumes"], docker.Calls);
+        Assert.Equal(["logs", "cache"], Names(viewModel));
+        Assert.False(viewModel.HasError);
+    }
+
+    [Fact]
+    public async Task Prune_WithTheOptionCheckedAlsoPrunesNamedVolumes()
+    {
+        var viewModel = await LoadedViewModelAsync();
+        dialogs.Script(new ConfirmResult(true, true));
+        docker.Calls.Clear();
+
+        await viewModel.PruneCommand.ExecuteAsync(null);
+
+        Assert.Equal(["PruneVolumes includeNamed=True", "ListVolumes"], docker.Calls);
+    }
+
+    [Fact]
+    public async Task Prune_ReportsTheNumberOfRemovedVolumesAndTheReclaimedSpace()
+    {
+        var viewModel = await LoadedViewModelAsync();
+        docker.PruneResult = new PruneResult(2, 1_073_741_824);
+
+        await viewModel.PruneCommand.ExecuteAsync(null);
+
+        Assert.Equal($"{ResourceKeys.PruneVolumesResult}|2|1.07GB", viewModel.StatusMessage);
+        Assert.True(viewModel.HasStatus);
+    }
+
+    [Fact]
+    public async Task Prune_NeedsNoSelection()
+    {
+        var viewModel = CreateViewModel();
+        Assert.True(viewModel.PruneCommand.CanExecute(null));
+
+        await viewModel.RefreshCommand.ExecuteAsync(null);
+        Assert.True(viewModel.PruneCommand.CanExecute(null));
+        Assert.False(viewModel.HasSelection);
+    }
+
+    [Fact]
+    public async Task Prune_ShowsTheEnginesErrorAsTheErrorOfTheActionAndStillReloads()
+    {
+        var viewModel = await LoadedViewModelAsync();
+        docker.MutationFailure = new DockerApiException(HttpStatusCode.Conflict, """{"message":"a prune operation is already running"}""");
+        docker.Calls.Clear();
+
+        await viewModel.PruneCommand.ExecuteAsync(null);
+
+        Assert.Equal("a prune operation is already running", viewModel.ErrorMessage);
+        Assert.Null(viewModel.StatusMessage);
+        Assert.Equal(["PruneVolumes includeNamed=False", "ListVolumes"], docker.Calls);
+
+        // Like any error of an action, it stays when a background refresh succeeds.
+        await viewModel.RefreshQuietlyAsync();
+
+        Assert.Equal("a prune operation is already running", viewModel.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task Prune_ConfirmationPausesTheBackgroundRefresh()
+    {
+        var viewModel = await LoadedViewModelAsync();
+        var answer = new TaskCompletionSource<ConfirmResult>();
+        dialogs.Handler = _ => answer.Task;
+        docker.Calls.Clear();
+
+        var prune = viewModel.PruneCommand.ExecuteAsync(null);
+        await viewModel.RefreshQuietlyAsync();
+
+        Assert.Empty(docker.Calls);
+
+        answer.SetResult(new ConfirmResult(false, false));
+        await prune;
+        await viewModel.RefreshQuietlyAsync();
+
+        Assert.Equal(["ListVolumes"], docker.Calls);
+    }
 }

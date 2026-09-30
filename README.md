@@ -45,6 +45,9 @@ dotnet test --project tests/WinDocker.Core.Tests
 ```
 
 The tests run on any OS. The Docker integration tests use the local engine and skip themselves when there is none.
+The ones that prune containers, images and volumes also need `WINDOCKER_DESTRUCTIVE_TESTS=1`. They only prune with a label
+filter, so resources that the tests did not create are left alone, but the variable keeps them from running by accident.
+The CI job on Linux sets it.
 
 ## Project structure
 

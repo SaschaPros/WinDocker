@@ -56,8 +56,18 @@ public sealed class DockerService : IDockerService, IDisposable
     public Task StopContainerAsync(string id, CancellationToken cancellationToken = default) =>
         CallAsync(docker => docker.Containers.StopContainerAsync(id, new ContainerStopParameters(), cancellationToken), cancellationToken);
 
+    public Task RestartContainerAsync(string id, CancellationToken cancellationToken = default) =>
+        CallAsync(docker => docker.Containers.RestartContainerAsync(id, new ContainerRestartParameters(), cancellationToken), cancellationToken);
+
     public Task RemoveContainerAsync(string id, bool force, CancellationToken cancellationToken = default) =>
         CallAsync(docker => docker.Containers.RemoveContainerAsync(id, new ContainerRemoveParameters { Force = force }, cancellationToken), cancellationToken);
+
+    public Task<PruneResult> PruneContainersAsync(CancellationToken cancellationToken = default) =>
+        PruneContainersCoreAsync(null, cancellationToken);
+
+    /// <summary>Like <see cref="PruneContainersAsync(CancellationToken)"/>, but only for containers that carry <paramref name="label"/> (<c>key</c> or <c>key=value</c>), so that tests never touch foreign containers.</summary>
+    internal Task<PruneResult> PruneContainersAsync(string label, CancellationToken cancellationToken = default) =>
+        PruneContainersCoreAsync(label, cancellationToken);
 
     public async Task<IReadOnlyList<ImageInfo>> ListImagesAsync(CancellationToken cancellationToken = default)
     {
@@ -76,6 +86,13 @@ public sealed class DockerService : IDockerService, IDisposable
     public Task RemoveImageAsync(string reference, CancellationToken cancellationToken = default) =>
         CallAsync(docker => docker.Images.DeleteImageAsync(reference, new ImageDeleteParameters(), cancellationToken), cancellationToken);
 
+    public Task<PruneResult> PruneImagesAsync(bool allUnused, CancellationToken cancellationToken = default) =>
+        PruneImagesCoreAsync(allUnused, null, cancellationToken);
+
+    /// <summary>Like <see cref="PruneImagesAsync(bool, CancellationToken)"/>, but only for images that carry <paramref name="label"/> (<c>key</c> or <c>key=value</c>), so that tests never touch foreign images.</summary>
+    internal Task<PruneResult> PruneImagesAsync(bool allUnused, string label, CancellationToken cancellationToken = default) =>
+        PruneImagesCoreAsync(allUnused, label, cancellationToken);
+
     public async Task<IReadOnlyList<VolumeInfo>> ListVolumesAsync(CancellationToken cancellationToken = default)
     {
         var response = await CallAsync(
@@ -91,6 +108,54 @@ public sealed class DockerService : IDockerService, IDisposable
 
     public Task RemoveVolumeAsync(string name, CancellationToken cancellationToken = default) =>
         CallAsync(docker => docker.Volumes.RemoveAsync(name, force: false, cancellationToken), cancellationToken);
+
+    public Task<PruneResult> PruneVolumesAsync(bool includeNamed, CancellationToken cancellationToken = default) =>
+        PruneVolumesCoreAsync(includeNamed, null, cancellationToken);
+
+    /// <summary>Like <see cref="PruneVolumesAsync(bool, CancellationToken)"/>, but only for volumes that carry <paramref name="label"/> (<c>key</c> or <c>key=value</c>), so that tests never touch foreign volumes.</summary>
+    internal Task<PruneResult> PruneVolumesAsync(bool includeNamed, string label, CancellationToken cancellationToken = default) =>
+        PruneVolumesCoreAsync(includeNamed, label, cancellationToken);
+
+    public async Task<IReadOnlyList<ComposeProjectInfo>> ListComposeProjectsAsync(CancellationToken cancellationToken = default)
+    {
+        var containers = await CallAsync(
+            docker => docker.Containers.ListContainersAsync(
+                new ContainersListParameters { All = true, Filters = Filters(("label", ComposeLabelNames.Project)) },
+                cancellationToken),
+            cancellationToken).ConfigureAwait(false);
+
+        return ComposeProjects.FromContainers(containers.Select(DockerMapper.ToContainerInfo));
+    }
+
+    public async Task RemoveComposeNetworksAsync(string project, CancellationToken cancellationToken = default)
+    {
+        var networks = await CallAsync(
+            docker => docker.Networks.ListNetworksAsync(
+                new NetworksListParameters { Filters = Filters(("label", ProjectLabel(project))) },
+                cancellationToken),
+            cancellationToken).ConfigureAwait(false);
+
+        // An engine that ignores the filter must not make this delete the networks of other projects.
+        foreach (var network in networks.Where(network => IsOfProject(network.Labels, project)))
+        {
+            await CallAsync(docker => docker.Networks.DeleteNetworkAsync(network.ID, cancellationToken), cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    public async Task RemoveComposeVolumesAsync(string project, CancellationToken cancellationToken = default)
+    {
+        var response = await CallAsync(
+            docker => docker.Volumes.ListAsync(
+                new VolumesListParameters { Filters = Filters(("label", ProjectLabel(project))) },
+                cancellationToken),
+            cancellationToken).ConfigureAwait(false);
+
+        // The engine answers "Volumes": null when there are none.
+        foreach (var volume in (response.Volumes ?? []).Where(volume => IsOfProject(volume.Labels, project)))
+        {
+            await CallAsync(docker => docker.Volumes.RemoveAsync(volume.Name, force: false, cancellationToken), cancellationToken).ConfigureAwait(false);
+        }
+    }
 
     public async IAsyncEnumerable<LogLine> StreamLogsAsync(
         string id,
@@ -154,6 +219,61 @@ public sealed class DockerService : IDockerService, IDisposable
             client?.Dispose();
             client = null;
         }
+    }
+
+    /// <summary>Builds the <c>filters</c> of a list or prune request. Entries without a value are left out; without any entry there is no filter at all.</summary>
+    private static Dictionary<string, IDictionary<string, bool>>? Filters(params (string Name, string? Value)[] filters)
+    {
+        Dictionary<string, IDictionary<string, bool>> result = [];
+        foreach (var (name, value) in filters)
+        {
+            if (value is not null)
+            {
+                result[name] = new Dictionary<string, bool> { [value] = true };
+            }
+        }
+
+        return result.Count == 0 ? null : result;
+    }
+
+    /// <returns>The value of the <c>label</c> filter that selects what belongs to the compose project.</returns>
+    private static string ProjectLabel(string project) => $"{ComposeLabelNames.Project}={project}";
+
+    private static bool IsOfProject(IDictionary<string, string>? labels, string project) =>
+        labels is not null && labels.TryGetValue(ComposeLabelNames.Project, out var value) && value == project;
+
+    private static PruneResult ToPruneResult(int deletedCount, ulong spaceReclaimed) => new(deletedCount, long.CreateSaturating(spaceReclaimed));
+
+    private async Task<PruneResult> PruneContainersCoreAsync(string? label, CancellationToken cancellationToken)
+    {
+        var parameters = new ContainersPruneParameters { Filters = Filters(("label", label)) };
+        var response = await CallAsync(
+            docker => docker.Containers.PruneContainersAsync(parameters, cancellationToken),
+            cancellationToken).ConfigureAwait(false);
+
+        // The engine answers null lists when nothing was removed.
+        return ToPruneResult(response.ContainersDeleted?.Count ?? 0, response.SpaceReclaimed);
+    }
+
+    private async Task<PruneResult> PruneImagesCoreAsync(bool allUnused, string? label, CancellationToken cancellationToken)
+    {
+        var parameters = new ImagesPruneParameters { Filters = Filters(("dangling", allUnused ? "false" : "true"), ("label", label)) };
+        var response = await CallAsync(
+            docker => docker.Images.PruneImagesAsync(parameters, cancellationToken),
+            cancellationToken).ConfigureAwait(false);
+
+        // An entry either deletes an image or only untags one that stays.
+        return ToPruneResult(response.ImagesDeleted?.Count(image => !string.IsNullOrEmpty(image.Deleted)) ?? 0, response.SpaceReclaimed);
+    }
+
+    private async Task<PruneResult> PruneVolumesCoreAsync(bool includeNamed, string? label, CancellationToken cancellationToken)
+    {
+        var parameters = new VolumesPruneParameters { Filters = Filters(("all", includeNamed ? "true" : null), ("label", label)) };
+        var response = await CallAsync(
+            docker => docker.Volumes.PruneAsync(parameters, cancellationToken),
+            cancellationToken).ConfigureAwait(false);
+
+        return ToPruneResult(response.VolumesDeleted?.Count ?? 0, response.SpaceReclaimed);
     }
 
     private static async Task<MultiplexedStream.ReadResult> ReadAsync(MultiplexedStream stream, byte[] buffer, CancellationToken cancellationToken)
