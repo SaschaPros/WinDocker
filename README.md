@@ -13,6 +13,9 @@ A small native Windows 11 app (WinUI 3) that manages the local Docker engine.
   right-click menu. One confirmation covers the whole selection.
 - **Auto-refresh**: the lists reload themselves every 5 seconds, and a selected row stays selected. Change the interval
   or turn it off in Settings; the choice is saved in `%LOCALAPPDATA%\WinDocker\settings.json`.
+- **Configurable columns**: on every list, click a column header to sort (ascending, descending, off), drag headers
+  to reorder the columns, and right-click a header to show or hide columns, move one, or reset the layout. The layout
+  of each list is saved in the same `settings.json`.
 
 WinDocker finds the engine the way the `docker` CLI does: `DOCKER_HOST` first, then the current `docker context`,
 then the default named pipe of Docker Desktop.
